@@ -24,37 +24,40 @@ module mycpu_top(
     output [31:0]	mips_perf_cnt_0//clk_counter
 );
 
-    reg [31:0] PC;
+    reg [31:0] PC;//在IF结束之前置为正确的值（这样ID阶段有正确的instr）
+	              //是IF级的输出，不过不是哪一级的输出
 	
-	assign inst_sram_wen = 0;
-	assign inst_sram_addr = PC;
-	assign inst_sram_wdata = 0;
-	
-	assign debug_wb_rf_wen = {4{wen_reg_file}};
-	assign debug_wb_rf_wnum = waddr;
-	assign debug_wb_rf_wdata = wdata;
-	
-	//update inst and data
-	wire [2:0] next_state;
-	
-	wire [31:0] inst;
+	//the following do not need to change when using pipline
+	assign inst_sram_wen = 0;//固定值，跟流水的输入输出无关
+	assign inst_sram_addr = PC;//与PC有关，在IF结束之前变成正确的值
+	assign inst_sram_wdata = 0;//固定值，跟流水的输入输出无关
+	assign debug_wb_rf_wen = {4{wen_reg_file}};//TODO
+	assign debug_wb_rf_wnum = waddr;//TODO
+	assign debug_wb_rf_wdata = wdata;//TODO
+		
+	wire [31:0] inst;//在ID阶段得到正确的instruction，据他产生很多信号。
+	                 //是ID阶段的输出（ID阶段也要使用），可能很多其他信号要用到它。TODO
 	assign inst=inst_sram_rdata;
-	wire [31:0] data_from_mem;
+	wire [31:0] data_from_mem;//是MEM阶段的输出（EX阶段，设置了地址等于ALU的结果，从而在MEM阶段一开始就可以得到正确的结果）
+	                          //可能WB阶段要用到它
+							  //TODO，可能还要收到读使能信号的影响，影响是什么时候输出
     assign data_from_mem=data_sram_rdata;
 
 	//define some simple signals (using extend)
+	//用inst产生一些简单信号，这个可能是译码阶段产生的，不知道什么时候用（TODO）
 	wire [31:0] sign_extended_imm;
 	assign sign_extended_imm={{16{inst[15]}},inst[15:0]};
 	wire [25:0] instr_index;
 	assign instr_index=inst[25:0];
 	wire [27:0] instr_index_sl2;
-	assign instr_index_sl2={instr_index[25:0],2'b00};
+	assign instr_index_sl2={instr[25:0],2'b00};//稍作更改，更整齐一些
 	wire [31:0] imm_sl16;
 	assign imm_sl16={inst[15:0],16'b0};
 	wire [31:0] zero_extended_imm;
 	assign zero_extended_imm={16'b0,inst[15:0]};
 
     // define the signal related to main control
+	//TODO，这个以后再看
     wire [5:0] behavior;                                //done
 	wire [31:0] Result;									//done (used in 2 places)
     wire [1:0] reg_dst;//signal for mux(where to write)	//done
@@ -89,9 +92,10 @@ module mycpu_top(
 		.bne(bne),.beq(beq),.j(j),.jal(jal),.R_type(R_type),
 		.regimm(regimm),.blez(blez),.bgtz(bgtz),.writing_back(writing_back)
 	);
-    assign behavior=inst[31:26]; 
-	assign data_sram_en=mem_read | mem_write;
+    assign behavior=inst[31:26]; //据inst（ID阶段产生）产生的信号，大约也是用在ID，TODO
+	assign data_sram_en=mem_read | mem_write;//TODO，大约是在ID阶段产生，后面各个级都要用到它，这个比较复杂
 	
+	//TODO,不知道新任务中debug_pc怎么赋值，没有这个写回周期了
     wire debug_wb_pc_update;
 	assign debug_wb_pc_update = writing_back | jal;
 	always@(posedge debug_wb_pc_update)
@@ -100,9 +104,11 @@ module mycpu_top(
     end
 	
 	//define the signal related to reg_file
-	wire clk_reg_file;									//done
-	wire rst_reg_file;									//done(not sure)
-	wire [4:0] waddr;									//done
+	//TODO，一会儿再看
+	wire clk_reg_file;									//
+	wire rst_reg_file;									//外界输入，不需要保存
+	wire [4:0] waddr;//ID结束的时候产生它的值，从而EX阶段依据它（TODO，以及写使能）来写
+	                 //应该是不需要保存
 	wire [4:0] raddr1;									//done
 	wire [4:0] raddr2;									//done
 	wire wen_reg_file;									//done
@@ -112,15 +118,20 @@ module mycpu_top(
 	//add the reg_flie into the circuit
 	reg_file cpu_reg_file(.clk(clk_reg_file),.resetn(rst_reg_file),.waddr(waddr),.raddr1(raddr1),
 		.raddr2(raddr2),.wen(wen_reg_file),.wdata(wdata),.rdata1(rdata1),.rdata2(rdata2));
-	assign clk_reg_file=clk;
-	assign raddr1=inst[25:21];
-	assign raddr2=inst[20:16];
+	assign clk_reg_file=clk;//流水线应该不需要更改它
+	assign raddr1=inst[25:21];//ID阶段开始的时候就可以据inst产生，这样ID阶段由于是组合逻辑，可以直接获得正确的读数据
+	                          //TODO，与使能信号配合
+	assign raddr2=inst[20:16];//ID阶段开始的时候就可以据inst产生，这样ID阶段由于是组合逻辑，可以直接获得正确的读数据
+	                          //TODO，与使能信号配合
 	assign wen_reg_file=(R_type==1 && inst[5:0]==6'b001011)?(rdata2!=32'b0):
 	                    (R_type==1 && inst[5:0]==6'b001010)?(rdata2==32'b0):
 	                    reg_write;//movn,movz
+						//对于普通的信号，译码完成就可以有效产生；对于movn和movz，可能需要执行阶段开始的时候才能得到正确的值
+						//使用的时候，是WB阶段来使用它（在WB阶段之前置为正确值）
 	assign rst_reg_file=resetn;
 
 	//define the signal related to ALU
+	//TODO，一会儿再看
 	wire [31:0] A;										//done
 	wire [31:0] B;										//done
 	wire [3:0] ALUoperation;							//done
@@ -137,6 +148,8 @@ module mycpu_top(
 		.ALU_ctr(ALUoperation));
 	
 	//MUX, what to write to memory
+	//这些信号的产生，需要EX阶段读RF以及ALU的结果得到。它们应该在EX阶段产生。
+	//被用来在MEM阶段写内存，需要有控制信号和选择信号配合，也需要与addr配合（TODO）
 	wire [31:0] write_data_sb;
 	wire [31:0] write_data_sh;
 	wire [31:0] write_data_swl;
@@ -161,6 +174,9 @@ module mycpu_top(
 					  rdata2;
 
 	//MUX, where to write, decide 'waddr'
+	//在译码阶段就可以产生出备选地址
+	//不知道选择信号怎么产生的。估计也是译码（TODO）
+	//在MEM阶段使用这些信号
 	wire [4:0] waddr_option00;
 	wire [4:0] waddr_option01;
 	assign waddr_option00=inst[20:16];
@@ -171,6 +187,8 @@ module mycpu_top(
 				 5'b00000;
 	
 	//MUX, what to compute, decide  'B'
+	//00选项需要EX阶段产生，其他的选项ID之后就有效了
+	//选择信号信号在ID阶段就产生
 	wire [31:0] B_option00;
 	wire [31:0] B_option01;
 	wire [31:0] B_option10;
@@ -194,34 +212,40 @@ module mycpu_top(
 	wire [31:0] wdata_lhu;
 	wire [31:0] wdata_lwl;
 	wire [31:0] wdata_lwr;
-	assign wdata_option0000=Result;
-	assign wdata_option0001=data_from_mem;
+	assign wdata_option0000=Result;//EX阶段产生
+	assign wdata_option0001=data_from_mem;//MEM阶段产生
 	assign wdata_lb=(Result[1:0]==2'b00)?{{24{data_from_mem[7]}},data_from_mem[7:0]}:
 				    (Result[1:0]==2'b01)?{{24{data_from_mem[15]}},data_from_mem[15:8]}:
 					(Result[1:0]==2'b10)?{{24{data_from_mem[23]}},data_from_mem[23:16]}:
 					(Result[1:0]==2'b11)?{{24{data_from_mem[31]}},data_from_mem[31:24]}:
 					32'b0;
+					//依据EX阶段产生的RESULT，以及MEM阶段的结果产生
 	assign wdata_lbu=(Result[1:0]==2'b00)?{24'b0,data_from_mem[7:0]}:
 					 (Result[1:0]==2'b01)?{24'b0,data_from_mem[15:8]}:
 					 (Result[1:0]==2'b10)?{24'b0,data_from_mem[23:16]}:
 					 (Result[1:0]==2'b11)?{24'b0,data_from_mem[31:24]}:
 					 32'b0;
+					 //依据EX阶段产生的RESULT，以及MEM阶段的结果产生
 	assign wdata_lh=(Result[1]==0)?{{16{data_from_mem[15]}},data_from_mem[15:0]}:
 		            (Result[1]==1)?{{16{data_from_mem[31]}},data_from_mem[31:16]}:
 					32'b0;
+					//依据EX阶段产生的RESULT，以及MEM阶段的结果产生
 	assign wdata_lhu=(Result[1]==0)?{16'b0,data_from_mem[15:0]}:
 					 (Result[1]==1)?{16'b0,data_from_mem[31:16]}:
 					 32'b0;
+					 //依据EX阶段产生的RESULT，以及MEM阶段的结果产生
 	assign wdata_lwl=(Result[1:0]==2'b00)?{data_from_mem[7:0],rdata2[23:0]}:
 					 (Result[1:0]==2'b01)?{data_from_mem[15:0],rdata2[15:0]}:
 					 (Result[1:0]==2'b10)?{data_from_mem[23:0],rdata2[7:0]}:
 					 (Result[1:0]==2'b11)?data_from_mem[31:0]:
 					 32'b0;
+					 //依据EX阶段产生的RESULT，以及MEM阶段的结果产生
 	assign wdata_lwr=(Result[1:0]==2'b00)?data_from_mem[31:0]:
 				     (Result[1:0]==2'b01)?{rdata2[31:24],data_from_mem[31:8]}:
 					 (Result[1:0]==2'b10)?{rdata2[31:16],data_from_mem[31:16]}:
 					 (Result[1:0]==2'b11)?{rdata2[31:8],data_from_mem[31:24]}:
 					 32'b0;
+					 //依据EX阶段产生的RESULT，以及MEM阶段的结果产生
 	assign wdata=(reg_write_value==4'b0000 &&(( inst[5:0]!=6'b001001 &&
 	             inst[5:1]!=5'b00101  && inst[5:0]!=6'b100111 &&
 			     inst[5:0]!=6'b101011)&&R_type==1 || R_type==0) )?wdata_option0000:
@@ -250,6 +274,7 @@ module mycpu_top(
 				 //result, can not imply it is R_type
 				 (reg_write_value==4'b0000 && inst[5:0]==6'b100111 && R_type==1)?~Result:
 				 4'b0000;
+				 //选择信号是译码阶段产生，供选信号有的是EX，有的是MEM产生
 
     //MUX,when the option is shift using sa, let a equal to sa instead of rs
 	//controled by control unit and function field
@@ -261,8 +286,12 @@ module mycpu_top(
 			 (inst[5:0]==6'b000000 || inst[5:0]==6'b000011 ||
 			 inst[5:0]==6'b000010)
 		     )?A_option1:A_option0;
+	//0选项ID阶段产生（TODO），1选项ID阶段产生
+	//选择信号ID阶段产生
+	//EX阶段要使用它
 
 	//PC
+	//TODO，一会儿再看
 	always @(posedge clk) begin
 		if(resetn==0) begin
 			PC<=32'Hbfc00000;
