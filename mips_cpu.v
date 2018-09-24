@@ -29,7 +29,7 @@ module mycpu_top(
 	
 	//the following do not need to change when using pipline
 	assign inst_sram_wen = 0;//固定值，跟流水的输入输出无关
-	assign inst_sram_addr = PC;//与PC有关，在IF结束之前变成正确的值，不是哪一级的输入
+	assign inst_sram_addr = PC_next;//与PC有关，在IF结束之前变成正确的值，不是哪一级的输入
 	assign inst_sram_wdata = 0;//固定值，跟流水的输入输出无关
 	assign debug_wb_rf_wen = {4{wen_reg_file}};//TODO
 	assign debug_wb_rf_wnum = waddr;//TODO
@@ -64,14 +64,14 @@ module mycpu_top(
     wire reg_write_ID;//enable signal						//done
 	wire PC_enable;//TODO，不知道怎么弄
 	//TODO，接下来的那些似乎是跟PC有关系的
-	wire bne;                                           //done
-	wire beq;											//done
-	wire j;												//done
-	wire jal;											//done
-	wire R_type;
-	wire regimm;
-	wire blez;
-	wire bgtz;
+	wire bne_ID;                                           //done
+	wire beq_ID;											//done
+	wire j_ID;												//done
+	wire jal_ID;											//done
+	wire R_type_ID;
+	wire regimm_ID;
+	wire blez_ID;
+	wire bgtz_ID;
 	wire [2:0] mem_write_value_ID;
 	wire writing_back;//TODO,不知道还需不需要
 
@@ -292,7 +292,7 @@ module mycpu_top(
 		if(resetn==0) begin
 			PC<=32'Hbfc00000;
 		end
-		else if(PC_enable)begin
+		else if(PC_enable)begin//TODO，流水的时候更新
 			PC<=pc_next;
 		end
 		//do not need PC<=PC
@@ -306,18 +306,20 @@ module mycpu_top(
 	wire [1:0] pc_decider;
 
 	//ID阶段结束后，各个选项都有了，但是decider需要等到EX结束时才可以。
+	//IF阶段，是上上条指令的EX阶段，依据这个EX的结果，判断选择跳向分支还是继续执行
+	//与之匹配的，option00用的永远是上条指令的PC加4
 	assign pc_next_option00=PC+4;  //directly +4
 	assign pc_next_option01=pc_next_option00+{{{14{inst[15]}},inst[15:0]},2'b00};  //beq,bne(pc+offset)
 	assign pc_next_option10={pc_next_option00[31:28],{inst[25:0],2'b00}};
     assign pc_next_option11=rdata1;
-    assign pc_decider=(Zero==0 && bne==1)?2'b01:
-		              (Zero==1 && beq==1 ||
-					  regimm==1 && inst[20:16]==5'b00001 && Result[0]==0 ||//bgez
-				      blez==1 && (Result[0]==1 || rdata1==32'b0) ||//blez
-					  bgtz==1 && (Result[0]==0 && rdata1!=32'b0) ||//bgtz
-					  regimm==1 && inst[20:16]==5'b00000 && Result[0]==1)?2'b01://bltz
-					  (j==1 || jal==1)?2'b10:
-					  (R_type==1 && inst[5:1]==5'b00100)?2'b11://unify jalr and jr
+    assign pc_decider=(Zero==0 && bne_ID_EX==1)?2'b01://Zero这个刚好是EX阶段的，恰好可以拿来用
+		              (Zero==1 && beq_ID_EX==1 ||
+					  regimm_ID_EX==1 && inst_ID_EX[20:16]==5'b00001 && Result[0]==0 ||//bgez
+				      blez_ID_EX==1 && (Result[0]==1 || rdata1==32'b0) ||//blez
+					  bgtz_ID_EX==1 && (Result[0]==0 && rdata1!=32'b0) ||//bgtz
+					  regimm_ID_EX==1 && inst_ID_EX[20:16]==5'b00000 && Result[0]==1)?2'b01://bltz
+					  (j_ID_EX==1 || jal_ID_EX==1)?2'b10:
+					  (R_type_ID_EX==1 && inst_ID_EX[5:1]==5'b00100)?2'b11://unify jalr and jr
 					  2'b00;
 	assign pc_next=(pc_decider==2'b00)?pc_next_option00:
 		           (pc_decider==2'b01)?pc_next_option01:
