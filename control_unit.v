@@ -23,12 +23,9 @@ module control_unit(
 	output R_type,
 	output regimm,
 	output blez,
-	output bgtz,
+	output bgtz
 
 );
-
-    assign writing_back = (state == WB)?1:0;
-	
 	//signal recording the decoded instruction
 	wire addiu, lw  , sw   , nop;
 	wire lui  , slti, sltiu;

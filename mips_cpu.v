@@ -10,13 +10,13 @@ module mycpu_top(
 	output [31:0] inst_sram_wdata,
 	input [31:0] inst_sram_rdata,
 	
-	output data_sram_en,
+	output data_sram_en,
 	output [3:0] data_sram_wen,
 	output [31:0] data_sram_addr,
 	output [31:0] data_sram_wdata,
 	input [31:0] data_sram_rdata,
 	
-	output reg [31:0] debug_wb_pc,
+	output [31:0] debug_wb_pc,
 	output [3:0]debug_wb_rf_wen,
 	output [4:0] debug_wb_rf_wnum,
 	output [31:0] debug_wb_rf_wdata,
@@ -24,14 +24,33 @@ module mycpu_top(
     output [31:0]	mips_perf_cnt_0//clk_counter
 );
 
+    //寄存器流水
+	reg [31:0] inst_ID_EX,inst_ID_MEM;
+	reg [31:0] Result_EX_MEM;
+	reg [1:0] reg_dst_ID_EX /*中间变量，过渡用*/,reg_dst_ID_MEM;
+	reg mem_read_ID_EX;
+	reg mem_write_ID_EX;
+	reg [3:0] reg_write_value_ID_EX /*中间变量，过渡用*/,reg_write_value_ID_MEM;
+	reg reg_write_ID_EX;
+	reg [2:0] mem_write_value_ID_EX;
+	reg [4:0] waddr_ID_EX  /*中间变量，过渡用*/,waddr_ID_MEM;
+	reg wen_reg_file_EX_MEM;
+	reg [31:0] rdata1_EX_MEM;
+	reg [31:0] rdata2_EX_MEM;
+	reg bne_ID_EX,beq_ID_EX,j_ID_EX,jal_ID_EX,R_type_ID_EX,R_type_ID_MEM,regimm_ID_EX,blez_ID_EX,bgtz_ID_EX;
+	reg CarryOut_EX_MEM;
+	reg [31:0] pc_next_option00_EX_MEM;
+	//为了debug_wb_pc增加一些流水寄存器
+	reg [31:0] PC_EX,PC_MEM;
+	
     reg [31:0] PC;//在IF结束之前置为正确的值（这样ID阶段有正确的instr）
 	              //是IF级的输出，不过不是哪一级的输入
 	
 	//the following do not need to change when using pipline
 	assign inst_sram_wen = 0;//固定值，跟流水的输入输出无关
-	assign inst_sram_addr = PC_next;//与PC有关，在IF结束之前变成正确的值，不是哪一级的输入
+	assign inst_sram_addr = pc_next;//与PC有关，在IF结束之前变成正确的值，不是哪一级的输入
 	assign inst_sram_wdata = 0;//固定值，跟流水的输入输出无关
-	assign debug_wb_pc = pc_next；//TODO，不知道怎么赋值
+	assign debug_wb_pc = pc_next;//TODO，不知道怎么赋值
 	assign debug_wb_rf_wen = {4{wen_reg_file_EX_MEM}};//TODO
 	assign debug_wb_rf_wnum = waddr_ID_MEM;//TODO
 	assign debug_wb_rf_wdata = wdata;//TODO
@@ -63,7 +82,6 @@ module mycpu_top(
 	wire [1:0] B_src;//signal for mux(what to compute)		//done
 	                 //ID阶段产生，EX阶段要用，刚刚好
     wire reg_write_ID;//enable signal						//done
-	wire PC_enable;//TODO，不知道怎么弄
 	//TODO，接下来的那些似乎是跟PC有关系的
 	wire bne_ID;                                           //done
 	wire beq_ID;											//done
@@ -87,7 +105,7 @@ module mycpu_top(
 		.regimm(regimm_ID),.blez(blez_ID),.bgtz(bgtz_ID)
 	);
     assign behavior=inst_ID[31:26]; //据inst（ID阶段产生）产生的信号，大约也是用在ID，TODO
-	assign data_sram_en=mem_read_ID_EX | mem_write_ID_EX;//TODO，大约是在ID阶段产生，后面各个级都要用到它，这个比较复杂
+	assign data_sram_en=mem_read_ID_EX| mem_write_ID_EX;//TODO，大约是在ID阶段产生，后面各个级都要用到它，这个比较复杂
 	
 	//define the signal related to reg_file
 	//TODO，一会儿再看
@@ -101,15 +119,15 @@ module mycpu_top(
 	wire [31:0] rdata1_EX;									//done
 	wire [31:0] rdata2_EX;									//done (used in 2 places)
 	//add the reg_flie into the circuit
-	reg_file cpu_reg_file(.clk(clk_reg_file),.resetn(rst_reg_file),.waddr_ID_MEM(waddr),.raddr1(raddr1),
+	reg_file cpu_reg_file(.clk(clk_reg_file),.resetn(rst_reg_file),.waddr(waddr_ID_MEM),.raddr1(raddr1),
 		.raddr2(raddr2),.wen(wen_reg_file_EX_MEM),.wdata(wdata),.rdata1(rdata1_EX),.rdata2(rdata2_EX));
 	assign clk_reg_file=clk;//流水线应该不需要更改它
 	assign raddr1=inst_ID[25:21];//ID阶段开始的时候就可以据inst产生，这样ID阶段由于是组合逻辑，可以直接获得正确的读数据
 	                          //TODO，与使能信号配合
 	assign raddr2=inst_ID[20:16];//ID阶段开始的时候就可以据inst产生，这样ID阶段由于是组合逻辑，可以直接获得正确的读数据
 	                          //TODO，与使能信号配合
-	assign wen_reg_file_EX=(R_type==1 && inst_ID[5:0]==6'b001011)?(rdata2_EX!=32'b0):
-	                    (R_type==1 && inst_ID[5:0]==6'b001010)?(rdata2_EX==32'b0):
+	assign wen_reg_file_EX=(R_type_ID_EX==1 && inst_ID[5:0]==6'b001011)?(rdata2_EX!=32'b0):
+	                    (R_type_ID_EX==1 && inst_ID[5:0]==6'b001010)?(rdata2_EX==32'b0):
 	                    reg_write_ID_EX;//movn,movz
 						//对于普通的信号，译码完成就可以有效产生；对于movn和movz，可能需要EX才能得到正确的值
 						//使用的时候，是WB阶段来使用它（在WB阶段之前置为正确值）
@@ -267,9 +285,9 @@ module mycpu_top(
 	//controled by control unit and function field
 	wire [31:0] A_option0;
 	wire [31:0] A_option1;
-	assign A_option0=rdata1;
+	assign A_option0=rdata1_EX;
 	assign A_option1[4:0]=inst_ID_EX[10:6];  //only assign value to part of A_option1
-    assign A=(R_type==1 && 
+    assign A=(R_type_ID_EX==1 && 
 			 (inst_ID_EX[5:0]==6'b000000 || inst_ID_EX[5:0]==6'b000011 ||
 			 inst_ID_EX[5:0]==6'b000010)
 		     )?A_option1:A_option0;
@@ -283,8 +301,8 @@ module mycpu_top(
 		if(resetn==0) begin
 			PC<=32'Hbfc00000;
 		end
-		else if(PC_enable)begin//TODO，流水的时候更新
-			PC<=pc_next;
+		else if(1)begin//TODO，流水的时候更新
+			PC<=pc_next;//在ID阶段，PC就是当前被处理的指令的PC值
 		end
 		//do not need PC<=PC
 	end
@@ -302,13 +320,13 @@ module mycpu_top(
 	assign pc_next_option00_EX=PC+4;  //directly +4
 	assign pc_next_option01=pc_next_option00_EX+{{{14{inst_ID_EX[15]}},inst_ID_EX[15:0]},2'b00};  //beq,bne(pc+offset)
 	assign pc_next_option10={pc_next_option00_EX[31:28],{inst_ID_EX[25:0],2'b00}};
-    assign pc_next_option11=rdata1;//这个刚好是EX阶段的，恰好可以拿来用
+    assign pc_next_option11=rdata1_EX;//这个刚好是EX阶段的，恰好可以拿来用
     assign pc_decider=(Zero==0 && bne_ID_EX==1)?2'b01://Zero这个刚好是EX阶段的，恰好可以拿来用
 		              (Zero==1 && beq_ID_EX==1 ||
-					  regimm_ID_EX==1 && inst_ID_EX[20:16]==5'b00001 && Result[0]==0 ||//bgez
-				      blez_ID_EX==1 && (Result[0]==1 || rdata1==32'b0) ||//blez
-					  bgtz_ID_EX==1 && (Result[0]==0 && rdata1!=32'b0) ||//bgtz
-					  regimm_ID_EX==1 && inst_ID_EX[20:16]==5'b00000 && Result[0]==1)?2'b01://bltz
+					  regimm_ID_EX==1 && inst_ID_EX[20:16]==5'b00001 && Result_EX[0]==0 ||//bgez
+				      blez_ID_EX==1 && (Result_EX[0]==1 || rdata1_EX==32'b0) ||//blez
+					  bgtz_ID_EX==1 && (Result_EX[0]==0 && rdata1_EX!=32'b0) ||//bgtz
+					  regimm_ID_EX==1 && inst_ID_EX[20:16]==5'b00000 && Result_EX[0]==1)?2'b01://bltz
 					  (j_ID_EX==1 || jal_ID_EX==1)?2'b10:
 					  (R_type_ID_EX==1 && inst_ID_EX[5:1]==5'b00100)?2'b11://unify jalr and jr
 					  2'b00;
@@ -320,21 +338,6 @@ module mycpu_top(
 	
 	
 	//寄存器流水
-	reg inst_ID_EX, inst_ID_MEM;
-	reg Result_EX_MEM;
-	reg reg_dst_ID_EX /*中间变量，过渡用*/,reg_dst_ID_MEM;
-	reg mem_read_ID_EX;
-	reg mem_write_ID_EX;
-	reg reg_write_value_ID_EX /*中间变量，过渡用*/,reg_write_value_ID_MEM;
-	reg reg_write_ID_EX;
-	reg mem_write_value_ID_EX;
-	reg waddr_ID_EX  /*中间变量，过渡用*/,waddr_ID_MEM;
-	reg wen_reg_file_EX_MEM;
-	reg rdata1_EX_MEM;
-	reg rdata2_EX_MEM;
-	reg bne_ID_EX,beq_ID_EX,j_ID_EX,jal_ID_EX,R_type_ID_EX,R_type_ID_MEM,regimm_ID_EX,blez_ID_EX,bgtz_ID_EX;
-	reg CarryOut_EX_MEM;
-	reg pc_next_option00_EX_MEM；
 	assign inst_sram_en=(1)/*IF->ID*/?1:0;
 	always@(posedge clk)
 	begin
@@ -356,6 +359,7 @@ module mycpu_top(
 			regimm_ID_EX<=regimm_ID;
 			blez_ID_EX<=blez_ID;
 			bgtz_ID_EX<=bgtz_ID;
+			PC_EX<=PC;
 		end
 		if(1)//EX->MEM
 		begin
@@ -367,9 +371,10 @@ module mycpu_top(
 			wen_reg_file_EX_MEM<=wen_reg_file_EX;
 			rdata1_EX_MEM<=rdata1_EX;
 			rdata2_EX_MEM<=rdata2_EX;
-			R_type_ID_MEM<=R_type_ID_EX；
+			R_type_ID_MEM<=R_type_ID_EX;
 			CarryOut_EX_MEM<=CarryOut_EX;
-		pc_next_option00_EX_MEM<=pc_next_option00_EX;
+		    pc_next_option00_EX_MEM<=pc_next_option00_EX;
+		    PC_MEM<=PC_EX;
 		end
 		if(1)
 		begin
