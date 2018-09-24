@@ -9,12 +9,12 @@ module control_unit(
 	input  [5:0] behavior,
 	input  [31:0] Result,//ALU result
 	output [1:0] reg_dst,//signal for mux(where to write)
-	output reg mem_read,//enable signal
+	output mem_read,//enable signal
 	output [3:0] reg_write_value,//signal for mux(what to write reg_file)
 	output [2:0] ALUop,//signal for ALU control
-	output reg mem_write,//enable signal
+	output mem_write,//enable signal
 	output [1:0] B_src,//signal for mux(what to compute)
-	output reg reg_write,//enable signal
+	output reg_write,//enable signal
 	output [3:0] data_sram_wen,//signal for 8or16-bit write
 	output [2:0] mem_write_value,//signal for mux(what to write to mem)
 	
@@ -33,17 +33,6 @@ module control_unit(
 
 	output writing_back
 );
-
-	//something related to FSM
-	reg [2:0] next_state;
-	reg [2:0] state;
-	parameter IF    =3'b000, //Instruction fecth
-		      IW    =3'b001, //Instruction wait
-			  ID_EX =3'b010, //Instruction decode_execute
-			  LD    =3'b011, //load data
-			  RDW   =3'b100, //read data wait
-			  WB    =3'b101, //write back
-			  ST    =3'b110; //TODO
 
     assign writing_back = (state == WB)?1:0;
 	
@@ -88,105 +77,9 @@ module control_unit(
 	assign Load_Class =(lw  || lb  || lbu || lh  || lhu    || lwl || lwr )?1:0;
 	assign Store_Class=(sw  || sb  || sh  || swl || swr                  )?1:0;
 
-	//Part 1, update to the new state
-	always @(posedge clk)
-	begin
-		if(~resetn)
-			state<=IF;
-		else
-			state<=next_state;
-	end
-
-	//Part 2, decide the new state
-	always @(*)
-	begin
-		if(resetn==0)
-			next_state=IF;
-		else
-		begin
-			case(state)
-				IF     : next_state=IW;
-				IW     : next_state=ID_EX; 
-				ID_EX  : next_state=(Jump_Class     )? IF    :
-									(Load_Class     )? LD    :
-									(Store_Class    )? ST    :WB ;
-				LD     : next_state= RDW;
-				RDW    : next_state= WB;
-				WB     : next_state= IF ;
-				ST     : next_state= IF;
-				default: next_state= IF ;
-			endcase
-        end
-	end
-
-	//Part 3, decide the output register
-	always @(posedge clk)
-	begin
-		//Enable Signal and Channel Control
-        case(next_state)     //use next_state, so the value will fit the state
-							 //the state and the control signals update at the
-							 //same time
-			IF     :
-			begin
-				mem_read <=0;
-				mem_write<=0;
-				reg_write<=0;
-				PC_enable<=0;
-				inst_sram_en<=1;
-			end
-			IW     :
-			begin
-				mem_read <=0;
-				mem_write<=0;
-				reg_write<=0;
-				PC_enable<=0;
-				inst_sram_en<=0;
-			end
-			ID_EX  :
-			begin
-				mem_read <=0;
-				mem_write<=0;
-				reg_write<=(jal);  //reg_write=1 when jal=1
-				PC_enable<=Jump_Class;
-				inst_sram_en<=0;
-			end
-			LD     :
-			begin
-				mem_read <=1;    //must be 1(because of the state)
-				mem_write<=0;
-				reg_write<=0;
-				PC_enable<=0;
-				inst_sram_en<=0;
-			end
-			RDW    :
-			begin
-				mem_read <=0;
-				mem_write<=0;
-				reg_write<=0;
-				PC_enable<=0;
-				inst_sram_en<=0;
-			end
-			WB     :
-			begin
-				mem_read <=0;
-				mem_write<=0;
-				reg_write<=1;    //must be 1(because of the state)
-				PC_enable<=1;    //Load and Store type, update here
-				                 //exactly change one time
-				inst_sram_en<=0;
-			end
-			ST     :
-			begin
-				mem_read <=0;
-				mem_write<=1;     //must be 1(because of the state)
-				reg_write<=0;
-				PC_enable<=(state==ID_EX);//only at the first time enter ST
-										  //change PC
-				inst_sram_en<=0;
-			end
-			default:;
-		endcase
-	end
+	assign mem_read=Load_Class;
+	assign mem_write=Store_Class;
+	assign reg_write=jal | ~(Jump_Class | Load_Class | Store_Class);
 
 	//Control Signal(used for make a choice)
 	assign reg_dst=(R_type)? 2'b01:

@@ -132,10 +132,10 @@ module mycpu_top(
 	wire [31:0] B;										//done
 	wire [3:0] ALUoperation;							//done
 	wire Overflow;
-	wire CarryOut;
+	wire CarryOut_EX;
 	wire Zero;											//done (used in pc_decider)
 	//add the ALU into the circuit
-	alu cpu_alu(.A(A),.B(B),.ALUop(ALUoperation),.Overflow(Overflow),.CarryOut(CarryOut),
+	alu cpu_alu(.A(A),.B(B),.ALUop(ALUoperation),.Overflow(Overflow),.CarryOut(CarryOut_EX),
 		.Zero(Zero),.Result(Result_EX));
 	assign data_sram_addr=Result_EX;
 
@@ -244,31 +244,31 @@ module mycpu_top(
 					 //依据EX阶段产生的RESULT，以及MEM阶段的结果产生
 	assign wdata=(reg_write_value_ID_MEM==4'b0000 &&(( inst_ID_MEM[5:0]!=6'b001001 &&
 	             inst_ID_MEM[5:1]!=5'b00101  && inst_ID_MEM[5:0]!=6'b100111 &&
-			     inst_ID_MEM[5:0]!=6'b101011)&&R_type==1 || R_type==0) )?wdata_option0000:
+			     inst_ID_MEM[5:0]!=6'b101011)&&R_type_ID_MEM==1 || R_type_ID_MEM==0) )?wdata_option0000:
 				                                //unify movn and movz
 
 												//some R_type need handle
 												//seperately
 		         (reg_write_value_ID_MEM===4'b0001)?wdata_option0001:
 				 (reg_write_value_ID_MEM===4'b0010 ||
-			     reg_write_value_ID_MEM===4'b0000 && inst_ID_MEM[5:0]==6'b001001 && R_type==1
-			     )?(pc_next_option00+4):
+			     reg_write_value_ID_MEM===4'b0000 && inst_ID_MEM[5:0]==6'b001001 && R_type_ID_MEM==1
+			     )?(pc_next_option00_EX_MEM+4):
 				                                //pc_next_option00 is defined below
 				 (reg_write_value_ID_MEM===4'b0011)?{inst_ID_MEM[15:0],16'b0}:
 				 (reg_write_value_ID_MEM===4'b0100 || 
-				 reg_write_value_ID_MEM===4'b0000 && inst_ID_MEM[5:0]==6'b101011 && R_type==1
-			     )?{31'b0,CarryOut}:
+				 reg_write_value_ID_MEM===4'b0000 && inst_ID_MEM[5:0]==6'b101011 && R_type_ID_MEM==1
+			     )?{31'b0,CarryOut_EX_MEM}:
 				 (reg_write_value_ID_MEM===4'b0101)?wdata_lb:  //lb
 				 (reg_write_value_ID_MEM===4'b0110)?wdata_lbu: //lbu
 				 (reg_write_value_ID_MEM===4'b0111)?wdata_lh:  //lh
 				 (reg_write_value_ID_MEM===4'b1000)?wdata_lhu: //lhu
 				 (reg_write_value_ID_MEM===4'b1001)?wdata_lwl: //lwl
 				 (reg_write_value_ID_MEM===4'b1010)?wdata_lwr: //lwr
-				 (reg_write_value_ID_MEM===4'b0000 && inst_ID_MEM[5:1]==5'b00101 && R_type==1)?rdata1_EX_MEM:
+				 (reg_write_value_ID_MEM===4'b0000 && inst_ID_MEM[5:1]==5'b00101 && R_type_ID_MEM==1)?rdata1_EX_MEM:
 												//unify movn and movz
 				 //note reg_write_value_ID_MEM===4'b000 only represent shoult write
 				 //result, can not imply it is R_type
-				 (reg_write_value_ID_MEM===4'b0000 && inst_ID_MEM[5:0]==6'b100111 && R_type==1)?~Result_EX_MEM:
+				 (reg_write_value_ID_MEM===4'b0000 && inst_ID_MEM[5:0]==6'b100111 && R_type_ID_MEM==1)?~Result_EX_MEM:
 				 4'b0000;
 				 //选择信号是译码阶段产生，供选信号有的是EX，有的是MEM产生
 
@@ -299,7 +299,7 @@ module mycpu_top(
 	end
 
 	wire [31:0] pc_next;
-	wire [31:0] pc_next_option00;
+	wire [31:0] pc_next_option00_EX;
 	wire [31:0] pc_next_option01;
 	wire [31:0] pc_next_option10;
 	wire [31:0] pc_next_option11;
@@ -308,10 +308,10 @@ module mycpu_top(
 	//ID阶段结束后，各个选项都有了，但是decider需要等到EX结束时才可以。
 	//IF阶段，是上上条指令的EX阶段，依据这个EX的结果，判断选择跳向分支还是继续执行
 	//与之匹配的，option00用的永远是上条指令的PC加4
-	assign pc_next_option00=PC+4;  //directly +4
-	assign pc_next_option01=pc_next_option00+{{{14{inst[15]}},inst[15:0]},2'b00};  //beq,bne(pc+offset)
-	assign pc_next_option10={pc_next_option00[31:28],{inst[25:0],2'b00}};
-    assign pc_next_option11=rdata1;
+	assign pc_next_option00_EX=PC+4;  //directly +4
+	assign pc_next_option01=pc_next_option00_EX+{{{14{inst_ID_EX[15]}},inst_ID_EX[15:0]},2'b00};  //beq,bne(pc+offset)
+	assign pc_next_option10={pc_next_option00_EX[31:28],{inst_ID_EX[25:0],2'b00}};
+    assign pc_next_option11=rdata1;//这个刚好是EX阶段的，恰好可以拿来用
     assign pc_decider=(Zero==0 && bne_ID_EX==1)?2'b01://Zero这个刚好是EX阶段的，恰好可以拿来用
 		              (Zero==1 && beq_ID_EX==1 ||
 					  regimm_ID_EX==1 && inst_ID_EX[20:16]==5'b00001 && Result[0]==0 ||//bgez
@@ -321,10 +321,11 @@ module mycpu_top(
 					  (j_ID_EX==1 || jal_ID_EX==1)?2'b10:
 					  (R_type_ID_EX==1 && inst_ID_EX[5:1]==5'b00100)?2'b11://unify jalr and jr
 					  2'b00;
-	assign pc_next=(pc_decider==2'b00)?pc_next_option00:
+	assign pc_next=(pc_decider==2'b00)?pc_next_option00_EX:
 		           (pc_decider==2'b01)?pc_next_option01:
 				   (pc_decider==2'b10)?pc_next_option10:
 				   (pc_decider==2'b11)?pc_next_option11:
 				   0;
+	
 endmodule
 
