@@ -5,7 +5,6 @@
 module control_unit(
 	input  clk,
 	input  resetn,
-	output reg inst_sram_en,
 	input  [5:0] behavior,
 	input  [31:0] Result,//ALU result
 	output [1:0] reg_dst,//signal for mux(where to write)
@@ -17,11 +16,6 @@ module control_unit(
 	output reg_write,//enable signal
 	output [3:0] data_sram_wen,//signal for 8or16-bit write
 	output [2:0] mem_write_value,//signal for mux(what to write to mem)
-	
-	
-
-	output reg PC_enable,
-
 	output bne,
     output beq,
 	output j,
@@ -31,7 +25,6 @@ module control_unit(
 	output blez,
 	output bgtz,
 
-	output writing_back
 );
 
     assign writing_back = (state == WB)?1:0;

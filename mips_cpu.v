@@ -31,8 +31,9 @@ module mycpu_top(
 	assign inst_sram_wen = 0;//固定值，跟流水的输入输出无关
 	assign inst_sram_addr = PC_next;//与PC有关，在IF结束之前变成正确的值，不是哪一级的输入
 	assign inst_sram_wdata = 0;//固定值，跟流水的输入输出无关
-	assign debug_wb_rf_wen = {4{wen_reg_file}};//TODO
-	assign debug_wb_rf_wnum = waddr;//TODO
+	assign debug_wb_pc = pc_next；//TODO，不知道怎么赋值
+	assign debug_wb_rf_wen = {4{wen_reg_file_EX_MEM}};//TODO
+	assign debug_wb_rf_wnum = waddr_ID_MEM;//TODO
 	assign debug_wb_rf_wdata = wdata;//TODO
 		
 	wire [31:0] inst_ID;//在ID阶段得到正确的instruction，据他产生很多信号。
@@ -76,27 +77,17 @@ module mycpu_top(
 	wire writing_back;//TODO,不知道还需不需要
 
 	//add the control unit into the circuit
-	control_unit cpu_control_unit(.clk(clk),.resetn(resetn),.inst_sram_en(inst_sram_en),
+	control_unit cpu_control_unit(.clk(clk),.resetn(resetn),
 	    .behavior(behavior),.Result(Result_EX),
 		.reg_dst(reg_dst_ID),.mem_read(mem_read_ID),.reg_write_value(reg_write_value_ID),
 		.ALUop(ALUop),.mem_write(mem_write_ID),.B_src(B_src),.reg_write(reg_write_ID),
 		.data_sram_wen(data_sram_wen),.mem_write_value(mem_write_value_ID),
-		.PC_enable(PC_enable),
-		
 		//decoding signal
-		.bne(bne),.beq(beq),.j(j),.jal(jal),.R_type(R_type),
-		.regimm(regimm),.blez(blez),.bgtz(bgtz),.writing_back(writing_back)
+		.bne(bne_ID),.beq(beq_ID),.j(j_ID),.jal(jal_ID),.R_type(R_type_ID),
+		.regimm(regimm_ID),.blez(blez_ID),.bgtz(bgtz_ID)
 	);
     assign behavior=inst_ID[31:26]; //据inst（ID阶段产生）产生的信号，大约也是用在ID，TODO
 	assign data_sram_en=mem_read_ID_EX | mem_write_ID_EX;//TODO，大约是在ID阶段产生，后面各个级都要用到它，这个比较复杂
-	
-	//TODO,不知道新任务中debug_pc怎么赋值，没有这个写回周期了
-    wire debug_wb_pc_update;
-	assign debug_wb_pc_update = writing_back | jal;
-	always@(posedge debug_wb_pc_update)
-	begin
-	    debug_wb_pc <= PC;
-    end
 	
 	//define the signal related to reg_file
 	//TODO，一会儿再看
@@ -110,8 +101,8 @@ module mycpu_top(
 	wire [31:0] rdata1_EX;									//done
 	wire [31:0] rdata2_EX;									//done (used in 2 places)
 	//add the reg_flie into the circuit
-	reg_file cpu_reg_file(.clk(clk_reg_file),.resetn(rst_reg_file),.waddr_MEM(waddr),.raddr1(raddr1),
-		.raddr2(raddr2),.wen(wen_reg_file_MEM),.wdata(wdata),.rdata1(rdata1_EX),.rdata2(rdata2_EX));
+	reg_file cpu_reg_file(.clk(clk_reg_file),.resetn(rst_reg_file),.waddr_ID_MEM(waddr),.raddr1(raddr1),
+		.raddr2(raddr2),.wen(wen_reg_file_EX_MEM),.wdata(wdata),.rdata1(rdata1_EX),.rdata2(rdata2_EX));
 	assign clk_reg_file=clk;//流水线应该不需要更改它
 	assign raddr1=inst_ID[25:21];//ID阶段开始的时候就可以据inst产生，这样ID阶段由于是组合逻辑，可以直接获得正确的读数据
 	                          //TODO，与使能信号配合
@@ -119,7 +110,7 @@ module mycpu_top(
 	                          //TODO，与使能信号配合
 	assign wen_reg_file_EX=(R_type==1 && inst_ID[5:0]==6'b001011)?(rdata2_EX!=32'b0):
 	                    (R_type==1 && inst_ID[5:0]==6'b001010)?(rdata2_EX==32'b0):
-	                    reg_write_EX;//movn,movz
+	                    reg_write_ID_EX;//movn,movz
 						//对于普通的信号，译码完成就可以有效产生；对于movn和movz，可能需要EX才能得到正确的值
 						//使用的时候，是WB阶段来使用它（在WB阶段之前置为正确值）
 						//这个可能要求rdata2进行传递
@@ -327,5 +318,62 @@ module mycpu_top(
 				   (pc_decider==2'b11)?pc_next_option11:
 				   0;
 	
+	
+	//寄存器流水
+	reg inst_ID_EX, inst_ID_MEM;
+	reg Result_EX_MEM;
+	reg reg_dst_ID_EX /*中间变量，过渡用*/,reg_dst_ID_MEM;
+	reg mem_read_ID_EX;
+	reg mem_write_ID_EX;
+	reg reg_write_value_ID_EX /*中间变量，过渡用*/,reg_write_value_ID_MEM;
+	reg reg_write_ID_EX;
+	reg mem_write_value_ID_EX;
+	reg waddr_ID_EX  /*中间变量，过渡用*/,waddr_ID_MEM;
+	reg wen_reg_file_EX_MEM;
+	reg rdata1_EX_MEM;
+	reg rdata2_EX_MEM;
+	reg bne_ID_EX,beq_ID_EX,j_ID_EX,jal_ID_EX,R_type_ID_EX,R_type_ID_MEM,regimm_ID_EX,blez_ID_EX,bgtz_ID_EX;
+	reg CarryOut_EX_MEM;
+	reg pc_next_option00_EX_MEM；
+	assign inst_sram_en=(1)/*IF->ID*/?1:0;
+	always@(posedge clk)
+	begin
+	    if(1)//ID->EX
+		begin
+		    inst_ID_EX<=inst_ID;
+			reg_dst_ID_EX <= reg_dst_ID;
+			mem_read_ID_EX<=mem_read_ID;
+			mem_write_ID_EX<=mem_write_ID;
+			reg_write_value_ID_EX <= reg_write_value_ID;
+			reg_write_ID_EX<=reg_write_ID;
+			mem_write_value_ID_EX<=mem_write_value_ID;
+			waddr_ID_EX<=waddr_ID;
+			bne_ID_EX<=bne_ID;
+			beq_ID_EX<=beq_ID;
+			j_ID_EX<=j_ID;
+			jal_ID_EX<=jal_ID;
+			R_type_ID_EX<=R_type_ID;
+			regimm_ID_EX<=regimm_ID;
+			blez_ID_EX<=blez_ID;
+			bgtz_ID_EX<=bgtz_ID;
+		end
+		if(1)//EX->MEM
+		begin
+		    inst_ID_MEM<=inst_ID_EX;
+			Result_EX_MEM<=Result_EX;
+			reg_dst_ID_MEM <= reg_dst_ID_EX;
+			reg_write_value_ID_MEM<=reg_write_value_ID_EX;
+			waddr_ID_MEM<=waddr_ID_EX;
+			wen_reg_file_EX_MEM<=wen_reg_file_EX;
+			rdata1_EX_MEM<=rdata1_EX;
+			rdata2_EX_MEM<=rdata2_EX;
+			R_type_ID_MEM<=R_type_ID_EX；
+			CarryOut_EX_MEM<=CarryOut_EX;
+		pc_next_option00_EX_MEM<=pc_next_option00_EX;
+		end
+		if(1)
+		begin
+		end
+	end
 endmodule
 
