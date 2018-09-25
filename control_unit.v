@@ -64,12 +64,12 @@ module control_unit(
 	//classify the instruction, used in Part 2
 	wire Jump_Class, Load_Class, Store_Class;
 	assign Jump_Class =(bne || beq || j   || jal || regimm || blez|| bgtz)?1:0;
-	assign Load_Class =(lw  || lb  || lbu || lh  || lhu    || lwl || lwr )?1:0;
+	assign Load_Class =(lw  || lb  || lbu || lh  || lhu    || lwl || lwr  || lui)?1:0;
 	assign Store_Class=(sw  || sb  || sh  || swl || swr                  )?1:0;
 
 	assign mem_read=Load_Class;
 	assign mem_write=Store_Class;
-	assign reg_write=jal | ~(Jump_Class | Load_Class | Store_Class);
+	assign reg_write=jal | ~(Jump_Class |  Store_Class);
 
 	//Control Signal(used for make a choice)
 	assign reg_dst=(R_type)? 2'b01:
