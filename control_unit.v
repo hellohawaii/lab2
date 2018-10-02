@@ -24,7 +24,6 @@ module control_unit(
 	output regimm,
 	output blez,
 	output bgtz
-
 );
 	//signal recording the decoded instruction
 	wire addiu, lw  , sw   , nop;
@@ -61,12 +60,10 @@ module control_unit(
 	assign swr   =(behavior==6'b101110)?1:0;
 	assign xori  =(behavior==6'b001110)?1:0;
 
-	//classify the instruction, used in Part 2
 	wire Jump_Class, Load_Class, Store_Class;
 	assign Jump_Class =(bne || beq || j   || jal || regimm || blez|| bgtz)?1:0;
 	assign Load_Class =(lw  || lb  || lbu || lh  || lhu    || lwl || lwr  || lui)?1:0;
 	assign Store_Class=(sw  || sb  || sh  || swl || swr                  )?1:0;
-
 	assign mem_read=Load_Class;
 	assign mem_write=Store_Class;
 	assign reg_write=jal | ~(Jump_Class |  Store_Class);
@@ -131,9 +128,9 @@ module control_unit(
 						  (Result[1:0]==2'b11)? 4'b1000:
 						                        4'b0000;
 	assign data_sram_wen=(sw )?        4'b1111:
-		              (sb )? write_strb_sb :
-					  (sh )? write_strb_sh :
-					  (swl)? write_strb_swl:
-					  (swr)? write_strb_swr:
-					                4'b0000;
+		                 (sb )? write_strb_sb :
+					     (sh )? write_strb_sh :
+				   	     (swl)? write_strb_swl:
+					     (swr)? write_strb_swr:
+					                   4'b0000;
 endmodule

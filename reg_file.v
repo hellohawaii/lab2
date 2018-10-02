@@ -15,9 +15,6 @@ module reg_file(
 	output [`DATA_WIDTH - 1:0] rdata1,
 	output [`DATA_WIDTH - 1:0] rdata2
 );
-
-
-	
 	//Definition
 	reg [`DATA_WIDTH-1:0] mem [`REG_NUM-1:0];
 

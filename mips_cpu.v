@@ -20,9 +20,8 @@ module mycpu_top(
 	output reg [3:0]debug_wb_rf_wen,
 	output reg [4:0] debug_wb_rf_wnum,
 	output reg [31:0] debug_wb_rf_wdata,
-
-    output [31:0]	mips_perf_cnt_0//clk_counter
 );
+
     //辅助信号，帮助初始化
     reg just_rst;//为1表示刚刚rst变成1（或还未变成一），之前一个时钟是rst还是还是0。总之，它为1排除了那些rst已经拉高了很久的情况
     always@(posedge clk)
@@ -32,7 +31,10 @@ module mycpu_top(
         else
             just_rst<=0;
     end
-
+	
+	reg [31:0] PC;//在IF结束之前置为正确的值（这样ID阶段有正确的instr）
+	              //是IF级的输出，不过不是哪一级的输入
+	
 
     //寄存器流水
 	reg [31:0] inst_ID_EX,inst_ID_MEM;
@@ -43,7 +45,6 @@ module mycpu_top(
 	reg [3:0] reg_write_value_ID_EX /*中间变量，过渡用*/,reg_write_value_ID_MEM;
 	reg reg_write_ID_EX;
 	reg [2:0] mem_write_value_ID_EX;
-	//reg [4:0] waddr_ID_EX  /*中间变量，过渡用*/,waddr_ID_MEM;
 	reg wen_reg_file_EX_MEM;
 	reg [31:0] rdata1_EX_MEM;
 	reg [31:0] rdata2_EX_MEM;
@@ -51,22 +52,19 @@ module mycpu_top(
 	reg CarryOut_EX_MEM;
 	reg [31:0] pc_next_option00_EX_MEM;
 	reg [1:0] B_src_ID_EX;
-	//reg [31:0] A_ID_EX,B_ID_EX;
 	reg [3:0] ALUoperation_ID_EX;
 	reg [4:0] raddr1_ID_EX,raddr2_ID_EX;
-	//为了debugc增加一些流水寄存器
-	reg [31:0] PC_EX,PC_MEM/*,PC_WB*//*,PC_afterWB*/;
-	reg [3:0] data_sram_wen_ID_EX/*, data_sram_wen_ID_MEM*/;
-	//reg [31:0] wdata_WB,wdata_afterWB;
+	//debug的流水寄存器
+	reg [31:0] PC_EX,PC_MEM;
+	reg [3:0] data_sram_wen_ID_EX;
 	
-    reg [31:0] PC;//在IF结束之前置为正确的值（这样ID阶段有正确的instr）
-	              //是IF级的输出，不过不是哪一级的输入
-	
-	//the following do not need to change when using pipline
-	assign inst_sram_wen = 0;//固定值，跟流水的输入输出无关
-	assign inst_sram_addr =/*(resetn==0)?32'Hbfc00000:*/pc_next;//与PC有关，在IF结束之前变成正确的值，不是哪一级的输入
-	assign inst_sram_wdata = 0;//固定值，跟流水的输入输出无关
+	//CPU简单的输出
+	assign inst_sram_wen = 0;
+	assign inst_sram_addr =/*(resetn==0)?32'Hbfc00000:*/pc_next;
+	assign inst_sram_wdata = 0;
 	assign data_sram_wen = data_sram_wen_ID_EX;
+	
+	//debug信号
 	always@(posedge clk)
 	begin
 	    if(wen_reg_file_EX_MEM==1 && waddr!= 5'b00000)
@@ -81,59 +79,24 @@ module mycpu_top(
 	        debug_wb_rf_wen <=0;
 	    end
 	end
-/*    
-    always@(*)
-    begin
-        if(wen_reg_file_EX==1 && waddr!= 5'b00000)
-        begin
-            debug_wb_rf_wen <= {4{wen_reg_file_EX}};
-        end
-        else
-        begin
-            debug_wb_rf_wen <=0;
-        end
-        //debug_wb_rf_wnum <= waddr_ID;
-        //debug_wb_rf_wdata <= wdata;
-    end
-*/
-	wire [31:0] inst_ID;//在ID阶段得到正确的instruction，据他产生很多信号。
-	                 //是ID阶段的输出（ID阶段也要使用），可能很多其他信号要用到它。TODO,主要时PC那里的使用不是很明白
-					 //是raddr的输入
-					 //写回阶段需要它，EX阶段也需要，还是传递下去吧。
+
+	wire [31:0] inst_ID;
 	assign inst_ID=inst_sram_rdata;
-	wire [31:0] data_from_mem;//是MEM阶段的输出（EX阶段，设置了地址等于ALU的结果，从而在MEM阶段一开始就可以得到正确的结果）
-	                          //可能WB阶段要用到它，大概不需要传递，只要在WB之前准备好就可以
+	wire [31:0] data_from_mem;
     assign data_from_mem=data_sram_rdata;
 
     // define the signal related to main control
-	//TODO，这个以后再看
-	//有一些控制信号需要用EX阶段的结果
-	//产生的控制信号应该有相当一部分需要向后传递
     wire [5:0] behavior;
-	wire [31:0] Result_EX;									//done (used in 2 places)
-	                    //EX阶段结束产生RESULT，这里用来计算写回时候的字节使能
-						//TODO，PC那里不清楚
-    wire [1:0] reg_dst_ID;//signal for mux(where to write)	//done
-	                   //译码阶段产生，MEM阶段要使用，用来写寄存器
-    wire mem_read_ID;//enable signal						//done
-    wire [3:0] reg_write_value_ID;//signal for mux(what to write)		//done	
-    wire [2:0] ALUop;//signal for ALU control			//done
-	                 //ID阶段产生，EX阶段要用，刚刚好
-	wire mem_write_ID;//enable signal						//done
-	wire [1:0] B_src_ID;//signal for mux(what to compute)		//done
-	                 //ID阶段产生，EX阶段要用，由于是组合逻辑，要保存（时序的时候有时候就不需要了）
-    wire reg_write_ID;//enable signal						//done
-	//TODO，接下来的那些似乎是跟PC有关系的
-	wire bne_ID;                                           //done
-	wire beq_ID;											//done
-	wire j_ID;												//done
-	wire jal_ID;											//done
-	wire R_type_ID;
-	wire regimm_ID;
-	wire blez_ID;
-	wire bgtz_ID;
+	wire [31:0] Result_EX;
+    wire [1:0] reg_dst_ID;
+    wire mem_read_ID;
+    wire [3:0] reg_write_value_ID;
+    wire [2:0] ALUop;
+	wire mem_write_ID;
+	wire [1:0] B_src_ID;
+    wire reg_write_ID;
+	wire bne_ID,beq_ID,j_ID,jal_ID,R_type_ID,regimm_ID,blez_ID,bgtz_ID;
 	wire [2:0] mem_write_value_ID;
-	wire writing_back;//TODO,不知道还需不需要
     wire [3:0] data_sram_wen_ID;
 	//add the control unit into the circuit
 	control_unit cpu_control_unit(.clk(clk),.resetn(resetn),
@@ -145,45 +108,39 @@ module mycpu_top(
 		.bne(bne_ID),.beq(beq_ID),.j(j_ID),.jal(jal_ID),.R_type(R_type_ID),
 		.regimm(regimm_ID),.blez(blez_ID),.bgtz(bgtz_ID)
 	);
-    assign behavior=inst_ID[31:26]; //据inst（ID阶段产生）产生的信号，大约也是用在ID，TODO
-	assign data_sram_en=mem_read_ID_EX| mem_write_ID_EX;//TODO，大约是在ID阶段产生，后面各个级都要用到它，这个比较复杂
+    assign behavior=inst_ID[31:26];
+	assign data_sram_en=mem_read_ID_EX| mem_write_ID_EX;
 	
 	//define the signal related to reg_file
-	//TODO，一会儿再看
 	wire clk_reg_file;
-	wire rst_reg_file;									//外界输入，不需要保存
-	wire [4:0] waddr;//ID结束的时候产生它的值，从而WB阶段依据它（以及写使能和写数据）来写
-	wire [4:0] raddr1_ID;//ID阶段产生，EX阶段要用，刚刚好
-	wire [4:0] raddr2_ID;//ID阶段产生，EX阶段要用，刚刚好
-	wire wen_reg_file_EX;//EX结束的时候产生它的值，从而WB阶段依据它（以及写地址和写数据）来写
-	wire [31:0] wdata;//TODO,好像不用改，本来就是MEM阶段产生出来的最后的值，WB阶段正好用了
-	wire [31:0] rdata1_EX;									//done
-	wire [31:0] rdata2_EX;									//done (used in 2 places)
+	wire rst_reg_file;
+	wire [4:0] waddr;
+	wire [4:0] raddr1_ID;
+	wire [4:0] raddr2_ID;
+	wire wen_reg_file_EX;
+	wire [31:0] wdata;
+	wire [31:0] rdata1_EX;
+	wire [31:0] rdata2_EX;
 	//add the reg_flie into the circuit
 	reg_file cpu_reg_file(.clk(clk_reg_file),.resetn(rst_reg_file),.waddr(waddr),.raddr1(raddr1_ID_EX),
 		.raddr2(raddr2_ID_EX),.wen(wen_reg_file_EX_MEM),.wdata(wdata),.rdata1(rdata1_EX),.rdata2(rdata2_EX));
-	assign clk_reg_file=clk;//流水线应该不需要更改它
-	assign raddr1_ID=inst_ID[25:21];//ID阶段开始的时候就可以据inst产生，这样ID阶段由于是组合逻辑，可以直接获得正确的读数据
-	                          //TODO，与使能信号配合
-	assign raddr2_ID=inst_ID[20:16];//ID阶段开始的时候就可以据inst产生，这样ID阶段由于是组合逻辑，可以直接获得正确的读数据
-	                          //TODO，与使能信号配合
+	assign clk_reg_file=clk;
+	assign raddr1_ID=inst_ID[25:21];
+	assign raddr2_ID=inst_ID[20:16];
 	assign wen_reg_file_EX=(R_type_ID_EX==1 && inst_ID_EX[5:0]==6'b001011)?(rdata2_EX!=32'b0):
-	                    (R_type_ID_EX==1 && inst_ID_EX[5:0]==6'b001010)?(rdata2_EX==32'b0):
-	                    reg_write_ID_EX;//movn,movz
-						//对于普通的信号，译码完成就可以有效产生；对于movn和movz，可能需要EX才能得到正确的值
-						//使用的时候，是WB阶段来使用它（在WB阶段之前置为正确值）
-						//这个可能要求rdata2进行传递
-						//reg_write是控制单元产生的，但是这个并不是完全的写使能控制信号，可能还受其他的控制
+	                       (R_type_ID_EX==1 && inst_ID_EX[5:0]==6'b001010)?(rdata2_EX==32'b0):
+	                       reg_write_ID_EX;//movn,movz
+						   //对于普通的信号，译码完成就可以有效产生；对于movn和movz，可能需要EX才能得到正确的值
+						   //reg_write是控制单元产生的，但是这个并不是完全的写使能控制信号，可能还受其他的控制
 	assign rst_reg_file=resetn;
 
 	//define the signal related to ALU
-	//TODO，一会儿再看
-	wire [31:0] A;										//done
-	wire [31:0] B;										//done
-	wire [3:0] ALUoperation_ID;							//done
+	wire [31:0] A;
+	wire [31:0] B;
+	wire [3:0] ALUoperation_ID;
 	wire Overflow;
 	wire CarryOut_EX;
-	wire Zero;											//done (used in pc_decider)
+	wire Zero;
 	//add the ALU into the circuit
 	alu cpu_alu(.A(A),.B(B),.ALUop(ALUoperation_ID_EX),.Overflow(Overflow),.CarryOut(CarryOut_EX),
 		.Zero(Zero),.Result(Result_EX));
@@ -333,12 +290,8 @@ module mycpu_top(
 			 (inst_ID_EX[5:0]==6'b000000 || inst_ID_EX[5:0]==6'b000011 ||
 			 inst_ID_EX[5:0]==6'b000010)
 		     )?A_option1:A_option0;
-	//0选项ID阶段产生（TODO），1选项ID阶段产生
-	//选择信号ID阶段产生
-	//EX阶段要使用它
 
 	//PC
-	//TODO，一会儿再看
 	always @(posedge clk) begin
 	    if (resetn==0)
 	        PC<=32'Hbfc00000;
@@ -359,12 +312,12 @@ module mycpu_top(
 	//IF阶段，是上上条指令的EX阶段，依据这个EX的结果，判断选择跳向分支还是继续执行
 	//与之匹配的，option00用的永远是上条指令的PC加4
 	assign pc_next_option00_EX=PC+4;  //directly +4
-	                                  //在每条指令的EX阶段，抗压确定下下条指令的地址。这时候PC的值是下条指令的地址，加4得到下下条指令的地址
+	                                  //在每条指令的EX阶段，可以确定下下条指令的地址。这时候PC的值是下条指令的地址，加4得到下下条指令的地址
 	assign pc_next_option01=PC+{{{14{inst_ID_EX[15]}},inst_ID_EX[15:0]},2'b00};  //beq,bne(pc+offset)
 	                                                                             //在外部已有延迟槽的时候，不需要从加4之后的基础上再加，故作更改
 	assign pc_next_option10={PC[31:28],{inst_ID_EX[25:0],2'b00}};//在外部已有延迟槽的时候，不需要从加4之后的基础上再加，故作更改
-    assign pc_next_option11=rdata1_EX;//这个刚好是EX阶段的，恰好可以拿来用
-    assign pc_decider=(Zero==0 && bne_ID_EX==1)?2'b01://Zero这个刚好是EX阶段的，恰好可以拿来用
+    assign pc_next_option11=rdata1_EX;
+    assign pc_decider=(Zero==0 && bne_ID_EX==1)?2'b01:
 		              (Zero==1 && beq_ID_EX==1 ||
 					  regimm_ID_EX==1 && inst_ID_EX[20:16]==5'b00001 && Result_EX[0]==0 ||//bgez
 				      blez_ID_EX==1 && (Result_EX[0]==1 || rdata1_EX==32'b0) ||//blez
