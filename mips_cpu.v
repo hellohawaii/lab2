@@ -19,7 +19,7 @@ module mycpu_top(
 	output reg [31:0] debug_wb_pc,
 	output reg [3:0]debug_wb_rf_wen,
 	output reg [4:0] debug_wb_rf_wnum,
-	output reg [31:0] debug_wb_rf_wdata,
+	output reg [31:0] debug_wb_rf_wdata
 );
 
     //¸¨ÖúĞÅºÅ£¬°ïÖú³õÊ¼»¯
