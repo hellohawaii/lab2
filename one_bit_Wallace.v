@@ -30,7 +30,8 @@ wire D42,E42,F42,C42,S42;
 wire D51,E51,F51,C51,S51;
 
 wire D61,E61,F61,C61,S61;
-
+reg [3:0] cout_5_8_reg;
+reg [3:0] S21_24_reg;
 three_to_one three_to_one_11(.D(D11),.E(E11),.F(F11),.C(C11),.S(S11));
 three_to_one three_to_one_12(.D(D12),.E(E12),.F(F12),.C(C12),.S(S12));
 three_to_one three_to_one_13(.D(D13),.E(E13),.F(F13),.C(C13),.S(S13));
@@ -93,9 +94,15 @@ assign D24=cin[2];
 assign E24=cin[3];
 assign F24=cin[4];
 */
-assign cout[5:8]={C21,C22,C23,C24};
+assign cout[5:8]=cout_5_8_reg;
 
-assign {D31,E31,F31,D32,E32,F32}={S21,S22,S23,S24,cin[5:6]};
+always @(posedge clk)
+begin
+    cout_5_8_reg<={C21,C22,C23,C24};
+	S21_24_reg<={S21,S22,S23,S24};
+end
+
+assign {D31,E31,F31,D32,E32,F32}={S21_24_reg,cin[5:6]};
 assign cout[9:10]={C31,C32};
 
 assign {D41,E41,F41,D42,E42,F42}={S31,S32,cin[7:10]};
