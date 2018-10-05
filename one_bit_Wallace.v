@@ -2,6 +2,7 @@
 
 module one_bit_Wallace(//对17个加数进行处理的华莱士树，这是其中的一位
     input wire clk,
+	input wire resetn,
     input wire [16:0] in,
 	input wire [13:0] cin,
 	output wire [13:0] cout
@@ -98,8 +99,16 @@ assign cout[5:8]=cout_5_8_reg;
 
 always @(posedge clk)
 begin
-    cout_5_8_reg<={C21,C22,C23,C24};
-	S21_24_reg<={S21,S22,S23,S24};
+    if(resetn==0)
+	begin
+        cout_5_8_reg<=4'b0;
+	    S21_24_reg<=4b0;
+    end
+	else
+	begin
+	    cout_5_8_reg<={C21,C22,C23,C24};
+	    S21_24_reg<={S21,S22,S23,S24};
+	end
 end
 
 assign {D31,E31,F31,D32,E32,F32}={S21_24_reg,cin[5:6]};

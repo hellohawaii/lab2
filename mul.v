@@ -43,7 +43,7 @@ module mul
 	endgenerate
 	
 	assign cin[13:0]=neg_flag[13:0];
-	Wallace u_Wallace(.mul_clk(clk),.in(in),.cin(cin),.A(tempA),.B(B));
+	Wallace u_Wallace(.mul_clk(clk),.resetn(resetn),.in(in),.cin(cin),.A(tempA),.B(B));
 	
 	wire [TOTAL_BITS-1:0] A;
 	assign A={tempA[TOTAL_BITS-2:0],neg_flag[14]};
