@@ -10,7 +10,7 @@ module one_bit_Wallace(//对17个加数进行处理的华莱士树，这是其中的一位
 	output wire B
 );
 
-//实例化，对three_to_one模块编号，从底层开始向上为第一个编号，从左向右数为第二个编号
+//实例化，对three_to_two模块编号，从底层开始向上为第一个编号，从左向右数为第二个编号
 wire D11,E11,F11,C11,S11;
 wire D12,E12,F12,C12,S12;
 wire D13,E13,F13,C13,S13;
@@ -33,26 +33,26 @@ wire D51,E51,F51,C51,S51;
 wire D61,E61,F61,C61,S61;
 reg [3:0] cout_5_8_reg;
 reg [3:0] S21_24_reg;
-three_to_one three_to_one_11(.D(D11),.E(E11),.F(F11),.C(C11),.S(S11));
-three_to_one three_to_one_12(.D(D12),.E(E12),.F(F12),.C(C12),.S(S12));
-three_to_one three_to_one_13(.D(D13),.E(E13),.F(F13),.C(C13),.S(S13));
-three_to_one three_to_one_14(.D(D14),.E(E14),.F(F14),.C(C14),.S(S14));
-three_to_one three_to_one_15(.D(D15),.E(E15),.F(F15),.C(C15),.S(S15));
+three_to_two three_to_two_11(.D(D11),.E(E11),.F(F11),.C(C11),.S(S11));
+three_to_two three_to_two_12(.D(D12),.E(E12),.F(F12),.C(C12),.S(S12));
+three_to_two three_to_two_13(.D(D13),.E(E13),.F(F13),.C(C13),.S(S13));
+three_to_two three_to_two_14(.D(D14),.E(E14),.F(F14),.C(C14),.S(S14));
+three_to_two three_to_two_15(.D(D15),.E(E15),.F(F15),.C(C15),.S(S15));
 
-three_to_one three_to_one_21(.D(D21),.E(E21),.F(F21),.C(C21),.S(S21));
-three_to_one three_to_one_22(.D(D22),.E(E22),.F(F22),.C(C22),.S(S22));
-three_to_one three_to_one_23(.D(D23),.E(E23),.F(F23),.C(C23),.S(S23));
-three_to_one three_to_one_24(.D(D24),.E(E24),.F(F24),.C(C24),.S(S24));
+three_to_two three_to_two_21(.D(D21),.E(E21),.F(F21),.C(C21),.S(S21));
+three_to_two three_to_two_22(.D(D22),.E(E22),.F(F22),.C(C22),.S(S22));
+three_to_two three_to_two_23(.D(D23),.E(E23),.F(F23),.C(C23),.S(S23));
+three_to_two three_to_two_24(.D(D24),.E(E24),.F(F24),.C(C24),.S(S24));
 
-three_to_one three_to_one_31(.D(D31),.E(E31),.F(F31),.C(C31),.S(S31));
-three_to_one three_to_one_32(.D(D32),.E(E32),.F(F32),.C(C32),.S(S32));
+three_to_two three_to_two_31(.D(D31),.E(E31),.F(F31),.C(C31),.S(S31));
+three_to_two three_to_two_32(.D(D32),.E(E32),.F(F32),.C(C32),.S(S32));
 
-three_to_one three_to_one_41(.D(D41),.E(E41),.F(F41),.C(C41),.S(S41));
-three_to_one three_to_one_42(.D(D42),.E(E42),.F(F42),.C(C42),.S(S42));
+three_to_two three_to_two_41(.D(D41),.E(E41),.F(F41),.C(C41),.S(S41));
+three_to_two three_to_two_42(.D(D42),.E(E42),.F(F42),.C(C42),.S(S42));
 
-three_to_one three_to_one_51(.D(D51),.E(E51),.F(F51),.C(C51),.S(S51));
+three_to_two three_to_two_51(.D(D51),.E(E51),.F(F51),.C(C51),.S(S51));
 
-three_to_one three_to_one_61(.D(D61),.E(E61),.F(F61),.C(C61),.S(S61));
+three_to_two three_to_two_61(.D(D61),.E(E61),.F(F61),.C(C61),.S(S61));
 
 //连线
 //用位拼接可能好看一些。
