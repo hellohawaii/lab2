@@ -3,10 +3,11 @@
 module Wallace
 (parameter TOTAL_BITS=64)
 (//17个加数，每个加数TOTAL_BITS=64位的华莱士树
+    input wire clk,
     input wire [16:0] in [TOTAL_BITS-1,0],
 	input wire [13:0] cin,
-	output wire [TOTAL_BITS-1,0] A,//C,没有进行错位处理，应该左移一位才是要用的
-	output wire [TOTAL_BITS-1,0] B//S
+	output wire [TOTAL_BITS-1:0] A,//C,没有进行错位处理，应该左移一位才是要用的
+	output wire [TOTAL_BITS-1:0] B//S
 );
 
 genvar bit_num;

@@ -1,11 +1,12 @@
 `timescale 10ns / 1ns
 
 module one_bit_Wallace(//对17个加数进行处理的华莱士树，这是其中的一位
-    wire [16:0] in,
-	wire [13:0] cin,
-	wire [13:0] cout
-	wire A,
-	wire B
+    input wire clk,
+    input wire [16:0] in,
+	input wire [13:0] cin,
+	output wire [13:0] cout
+	output wire A,
+	output wire B
 );
 
 //实例化，对three_to_one模块编号，从底层开始向上为第一个编号，从左向右数为第二个编号
