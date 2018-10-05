@@ -1,18 +1,16 @@
 `timescale 10ns / 1ns
 
 module booth
-//杈撳叆鎵╁睍鍚庣殑X(TOTAL_BITS=64)锛屼笌Y锛圛N_BITS=34锛夛紝寰楀埌P鍜孋
-(parameter TOTAL_BITS=64,//閮ㄥ垎绉殑闀垮害
- parameter IN_BITS=34,//杈撳叆鐨勪箻鏁扮殑浣嶅
- parameter NUM_RESULTS=17//閮ㄥ垎绉殑涓暟
-)
+//输入扩展后的X(TOTAL_BITS=64)，与Y（IN_BITS=34），得到P和C
 (
     input wire [TOTAL_BITS-1:0] X,
 	input wire [IN_BITS-1:0] Y,
 	output wire [TOTAL_BITS-1:0] P [NUM_RESULTS-1:0],
-	output wire [NUM_RESULTS-1:0] neg_flag//鍙栧弽鐨勬爣蹇椾綅
+	output wire [NUM_RESULTS-1:0] neg_flag//取反的标志位
 );
-
+parameter TOTAL_BITS=64;//部分积的长度
+parameter IN_BITS=34;//输入的乘数的位宽
+parameter NUM_RESULTS=17;//部分积的个数
 
 wire [TOTAL_BITS-1:0] two_X;
 wire [TOTAL_BITS-1:0] neg_X;
@@ -36,7 +34,7 @@ generate
 		end
 		else
 		begin
-		    assign {y2,y1,y0}=Y[2*result_num+1,2*result_num-1];
+		    assign {y2,y1,y0}=Y[2*result_num+1:2*result_num-1];
 		end
 		wire [2:0] sel;
 		assign sel={y2,y1,y0};
@@ -48,7 +46,7 @@ generate
 				|({TOTAL_BITS{sel==3'b000}} & neg_X)
 				|({TOTAL_BITS{sel==3'b000}} & neg_X)
 				|({TOTAL_BITS{sel==3'b000}} & {TOTAL_BITS{1'b0}});
-		assign single_p={tem_p[TOTAL_BITS-1-2*result_num:0],{result_num{2'b00}}};//鍏佽0涓嫾鎺ュ湪涓�璧峰悧
+		assign single_p={temp_p[TOTAL_BITS-1-2*result_num:0],{result_num{2'b00}}};//允许0个拼接在一起吗
 		assign P[result_num]=single_p;
 		assign single_neg_flag=(sel==3'b100)|(sel==3'b101)|(sel==3'b110);
 		assign neg_flag[result_num]=single_neg_flag;

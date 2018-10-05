@@ -1,12 +1,6 @@
 `timescale 10ns / 1ns
 
 module mul
-(parameter TOTAL_BITS=64,//閮ㄥ垎绉殑闀垮害
- parameter IN_BITS=34,//杈撳叆鐨勪箻鏁扮殑浣嶅
- parameter EXTEND_BITS1=32
- parameter EXTEND_BITS2=2
- parameter NUM_RESULTS=17//閮ㄥ垎绉殑涓暟
-)
 (
     input mul_clk,
 	input resetn,
@@ -15,6 +9,11 @@ module mul
 	input [31:0] y,
 	output [63:0] result
 );
+parameter TOTAL_BITS=64;//部分积的长度
+parameter IN_BITS=34;//输入的乘数的位宽
+parameter EXTEND_BITS1=32;
+parameter EXTEND_BITS2=2;
+parameter NUM_RESULTS=17;//部分积的个数
 
     wire [TOTAL_BITS-1:0] longx;
 	wire [IN_BITS-1:0] longy;
@@ -25,7 +24,7 @@ module mul
 	wire [NUM_RESULTS-1:0] neg_flag;	
 	booth u_booth(.X(longx),.Y(longy),.P(P),.neg_flag(neg_flag));
 	
-	wire [16:0] in [TOTAL_BITS-1,0];
+	wire [16:0] in [TOTAL_BITS-1:0];
 	wire [13:0] cin;
 	wire [TOTAL_BITS-1:0] tempA;
 	wire [TOTAL_BITS-1:0] B;
@@ -43,11 +42,10 @@ module mul
 	endgenerate
 	
 	assign cin[13:0]=neg_flag[13:0];
-	Wallace u_Wallace(.mul_clk(clk),.resetn(resetn),.in(in),.cin(cin),.A(tempA),.B(B));
+	Wallace u_Wallace(.clk(mul_clk),.resetn(resetn),.in(in),.cin(cin),.A(tempA),.B(B));
 	
 	wire [TOTAL_BITS-1:0] A;
 	assign A={tempA[TOTAL_BITS-2:0],neg_flag[14]};
 	
 	assign result=A+B+neg_flag[15];
-);
 endmodule

@@ -1,16 +1,16 @@
 `timescale 10ns / 1ns
 
-module one_bit_Wallace(//å¯¹17ä¸ªåŠ æ•°è¿›è¡Œå¤„ç†çš„åè±å£«æ ‘ï¼Œè¿™æ˜¯å…¶ä¸­çš„ä¸€ä½
+module one_bit_Wallace(//¶Ô17¸ö¼ÓÊı½øĞĞ´¦ÀíµÄ»ªÀ³Ê¿Ê÷£¬ÕâÊÇÆäÖĞµÄÒ»Î»
     input wire clk,
 	input wire resetn,
     input wire [16:0] in,
 	input wire [13:0] cin,
-	output wire [13:0] cout
+	output wire [13:0] cout,
 	output wire A,
 	output wire B
 );
 
-//å®ä¾‹åŒ–ï¼Œå¯¹three_to_oneæ¨¡å—ç¼–å·ï¼Œä»åº•å±‚å¼€å§‹å‘ä¸Šä¸ºç¬¬ä¸€ä¸ªç¼–å·ï¼Œä»å·¦å‘å³æ•°ä¸ºç¬¬äºŒä¸ªç¼–å·
+//ÊµÀı»¯£¬¶Ôthree_to_oneÄ£¿é±àºÅ£¬´Óµ×²ã¿ªÊ¼ÏòÉÏÎªµÚÒ»¸ö±àºÅ£¬´Ó×óÏòÓÒÊıÎªµÚ¶ş¸ö±àºÅ
 wire D11,E11,F11,C11,S11;
 wire D12,E12,F12,C12,S12;
 wire D13,E13,F13,C13,S13;
@@ -54,8 +54,8 @@ three_to_one three_to_one_51(.D(D51),.E(E51),.F(F51),.C(C51),.S(S51));
 
 three_to_one three_to_one_61(.D(D61),.E(E61),.F(F61),.C(C61),.S(S61));
 
-//è¿çº¿
-//ç”¨ä½æ‹¼æ¥å¯èƒ½å¥½çœ‹ä¸€äº›ã€‚
+//Á¬Ïß
+//ÓÃÎ»Æ´½Ó¿ÉÄÜºÃ¿´Ò»Ğ©¡£
 assign {D11,E11,F11,D12,E12,F12,D13,E13,F13,D14,E14,F14,D15,E15,F15}=in[16:2];
 /*
 assign E11=in[15];
@@ -102,7 +102,7 @@ begin
     if(resetn==0)
 	begin
         cout_5_8_reg<=4'b0;
-	    S21_24_reg<=4b0;
+	    S21_24_reg<=4'b0;
     end
 	else
 	begin
