@@ -31,7 +31,7 @@ wire D42,E42,F42,C42,S42;
 wire D51,E51,F51,C51,S51;
 
 wire D61,E61,F61,C61,S61;
-reg [3:0] cout_5_8_reg;
+reg [3:0] cout_8_5_reg;
 reg [3:0] S21_24_reg;
 three_to_two three_to_two_11(.D(D11),.E(E11),.F(F11),.C(C11),.S(S11));
 three_to_two three_to_two_12(.D(D12),.E(E12),.F(F12),.C(C12),.S(S12));
@@ -73,7 +73,7 @@ assign D15=in[ 4];
 assign E15=in[ 3];
 assign F15=in[ 2];
 */
-assign cout[0:4]={C11,C12,C13,C14,C15};
+assign cout[4:0]={C15,C14,C13,C12,C11};
 /*
 assign cout[1]=C12;
 assign cout[2]=C13;
@@ -81,7 +81,7 @@ assign cout[3]=C14;
 assign cout[4]=C15;
 */
 
-assign {D21,E21,F21,D22,E22,F22,D23,E23,F23,D24,E24,F24}={S11,S12,S13,S14,S15,in[1:0],cin[0:4]};
+assign {D21,E21,F21,D22,E22,F22,D23,E23,F23,D24,E24,F24}={S11,S12,S13,S14,S15,in[1:0],cin[4:0]};
 /*
 assign E21=S12;
 assign F21=S13;
@@ -95,32 +95,32 @@ assign D24=cin[2];
 assign E24=cin[3];
 assign F24=cin[4];
 */
-assign cout[5:8]=cout_5_8_reg;
+assign cout[8:5]=cout_8_5_reg;
 
 always @(posedge clk)
 begin
     if(resetn==0)
 	begin
-        cout_5_8_reg<=4'b0;
+        cout_8_5_reg<=4'b0;
 	    S21_24_reg<=4'b0;
     end
 	else
 	begin
-	    cout_5_8_reg<={C21,C22,C23,C24};
+	    cout_8_5_reg<={C24,C23,C22,C21};
 	    S21_24_reg<={S21,S22,S23,S24};
 	end
 end
 
-assign {D31,E31,F31,D32,E32,F32}={S21_24_reg,cin[5:6]};
-assign cout[9:10]={C31,C32};
+assign {D31,E31,F31,D32,E32,F32}={S21_24_reg,cin[6:5]};
+assign cout[10:9]={C32,C31};
 
-assign {D41,E41,F41,D42,E42,F42}={S31,S32,cin[7:10]};
-assign cout[11:12]={C41,C42};
+assign {D41,E41,F41,D42,E42,F42}={S31,S32,cin[10:7]};
+assign cout[12:11]={C42,C41};
 
-assign {D51,E61,F61}={S41,S42,cin[11]};
+assign {D51,E51,F51}={S41,S42,cin[11]};
 assign cout[13]=C51;
 
-assign {D61,E61,F61}={S51,cin[12:13]};
+assign {D61,E61,F61}={S51,cin[13:12]};
 assign {A,B}={C61,S61};
 
 endmodule

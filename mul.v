@@ -40,7 +40,7 @@ generate
         wire single_neg_flag;//取反的标志位
         if(result_num==0)
         begin
-            assign y0=0;
+            assign y0=1'b0;
             assign {y2,y1}=longy[1:0];
         end
         else
@@ -49,20 +49,41 @@ generate
         end
         wire [2:0] sel;
         assign sel={y2,y1,y0};
-        assign temp_p=({TOTAL_BITS{sel==3'b000}} & {TOTAL_BITS{1'b0}})| 
+        assign temp_p=({TOTAL_BITS{sel==3'b000}} & {TOTAL_BITS{1'b0}})
                 |({TOTAL_BITS{sel==3'b001}} & longx)
                 |({TOTAL_BITS{sel==3'b010}} & longx)
                 |({TOTAL_BITS{sel==3'b011}} & two_X)
                 |({TOTAL_BITS{sel==3'b100}} & two_neg_X)
-                |({TOTAL_BITS{sel==3'b000}} & neg_X)
-                |({TOTAL_BITS{sel==3'b000}} & neg_X)
-                |({TOTAL_BITS{sel==3'b000}} & {TOTAL_BITS{1'b0}});
-        assign single_p={temp_p[TOTAL_BITS-1-2*result_num:0],{result_num{2'b00}}};//允许0个拼接在一起吗
+                |({TOTAL_BITS{sel==3'b101}} & neg_X)
+                |({TOTAL_BITS{sel==3'b110}} & neg_X)
+                |({TOTAL_BITS{sel==3'b111}} & {TOTAL_BITS{1'b0}});
+        if(result_num==0)
+        begin
+            assign single_p=temp_p;
+        end
+        else
+        begin
+            assign single_p={temp_p[TOTAL_BITS-1-2*result_num:0],{2*result_num{single_neg_flag}}};//允许0个拼接在一起吗
+        end
         assign P[result_num]=single_p;
         assign single_neg_flag=(sel==3'b100)|(sel==3'b101)|(sel==3'b110);
         assign neg_flag[result_num]=single_neg_flag;
     end
 endgenerate
+
+//受流水线影响，neg_flag的5-15位都要保存下来
+reg [NUM_RESULTS-1:0] neg_flag_reg;
+always @(posedge mul_clk)
+begin
+    if(resetn==0)
+	begin
+        neg_flag_reg<={NUM_RESULTS{1'b0}};
+    end
+	else
+	begin
+	    neg_flag_reg<=neg_flag;
+	end
+end
 	
 wire [16:0] in [TOTAL_BITS-1:0];
 wire [13:0] cin;
@@ -72,7 +93,7 @@ wire [TOTAL_BITS-1:0] B;//S
 genvar gvr1;
 genvar gvr2;
 generate
-    for(gvr1=0;gvr1<=TOTAL_BITS;gvr1=gvr1+1)
+    for(gvr1=0;gvr1<TOTAL_BITS;gvr1=gvr1+1)
 	begin:loop1
 	    for(gvr2=0;gvr2<NUM_RESULTS;gvr2=gvr2+1)
 		begin:loop2
@@ -81,7 +102,7 @@ generate
 	end
 endgenerate
 	
-assign cin[13:0]=neg_flag[13:0];
+assign cin[13:0]=/*neg_flag[13:0]*/{neg_flag_reg[13:5],neg_flag[4:0]};
 //17个加数，每个加数TOTAL_BITS=64位的华莱士树
 genvar bit_num;
 generate
@@ -107,7 +128,7 @@ generate
 endgenerate
 	
 wire [TOTAL_BITS-1:0] A;
-assign A={tempA[TOTAL_BITS-2:0],neg_flag[14]};
+assign A={tempA[TOTAL_BITS-2:0],neg_flag_reg[14]};
 	
-assign result=A+B+neg_flag[15];
+assign result=A+B+neg_flag_reg[15];
 endmodule
