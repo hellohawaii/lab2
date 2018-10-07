@@ -1,14 +1,16 @@
 `timescale 10ns / 1ns
 
-module one_bit_Wallace(//å¯¹17ä¸ªåŠ æ•°è¿›è¡Œå¤„ç†çš„åè±å£«æ ‘ï¼Œè¿™æ˜¯å…¶ä¸­çš„ä¸€ä½
-    wire [16:0] in,
-	wire [13:0] cin,
-	wire [13:0] cout
-	wire A,
-	wire B
+module one_bit_Wallace(//¶Ô17¸ö¼ÓÊı½øĞĞ´¦ÀíµÄ»ªÀ³Ê¿Ê÷£¬ÕâÊÇÆäÖĞµÄÒ»Î»
+    input wire clk,
+	input wire resetn,
+    input wire [16:0] in,
+	input wire [13:0] cin,
+	output wire [13:0] cout,
+	output wire A,
+	output wire B
 );
 
-//å®ä¾‹åŒ–ï¼Œå¯¹three_to_oneæ¨¡å—ç¼–å·ï¼Œä»åº•å±‚å¼€å§‹å‘ä¸Šä¸ºç¬¬ä¸€ä¸ªç¼–å·ï¼Œä»å·¦å‘å³æ•°ä¸ºç¬¬äºŒä¸ªç¼–å·
+//ÊµÀı»¯£¬¶Ôthree_to_twoÄ£¿é±àºÅ£¬´Óµ×²ã¿ªÊ¼ÏòÉÏÎªµÚÒ»¸ö±àºÅ£¬´Ó×óÏòÓÒÊıÎªµÚ¶ş¸ö±àºÅ
 wire D11,E11,F11,C11,S11;
 wire D12,E12,F12,C12,S12;
 wire D13,E13,F13,C13,S13;
@@ -29,30 +31,31 @@ wire D42,E42,F42,C42,S42;
 wire D51,E51,F51,C51,S51;
 
 wire D61,E61,F61,C61,S61;
+reg [3:0] cout_8_5_reg;
+reg [3:0] S21_24_reg;
+three_to_two three_to_two_11(.D(D11),.E(E11),.F(F11),.C(C11),.S(S11));
+three_to_two three_to_two_12(.D(D12),.E(E12),.F(F12),.C(C12),.S(S12));
+three_to_two three_to_two_13(.D(D13),.E(E13),.F(F13),.C(C13),.S(S13));
+three_to_two three_to_two_14(.D(D14),.E(E14),.F(F14),.C(C14),.S(S14));
+three_to_two three_to_two_15(.D(D15),.E(E15),.F(F15),.C(C15),.S(S15));
 
-three_to_one three_to_one_11(.D(D11),.E(E11),.F(F11),.C(C11),.S(S11));
-three_to_one three_to_one_12(.D(D12),.E(E12),.F(F12),.C(C12),.S(S12));
-three_to_one three_to_one_13(.D(D13),.E(E13),.F(F13),.C(C13),.S(S13));
-three_to_one three_to_one_14(.D(D14),.E(E14),.F(F14),.C(C14),.S(S14));
-three_to_one three_to_one_15(.D(D15),.E(E15),.F(F15),.C(C15),.S(S15));
+three_to_two three_to_two_21(.D(D21),.E(E21),.F(F21),.C(C21),.S(S21));
+three_to_two three_to_two_22(.D(D22),.E(E22),.F(F22),.C(C22),.S(S22));
+three_to_two three_to_two_23(.D(D23),.E(E23),.F(F23),.C(C23),.S(S23));
+three_to_two three_to_two_24(.D(D24),.E(E24),.F(F24),.C(C24),.S(S24));
 
-three_to_one three_to_one_21(.D(D21),.E(E21),.F(F21),.C(C21),.S(S21));
-three_to_one three_to_one_22(.D(D22),.E(E22),.F(F22),.C(C22),.S(S22));
-three_to_one three_to_one_23(.D(D23),.E(E23),.F(F23),.C(C23),.S(S23));
-three_to_one three_to_one_24(.D(D24),.E(E24),.F(F24),.C(C24),.S(S24));
+three_to_two three_to_two_31(.D(D31),.E(E31),.F(F31),.C(C31),.S(S31));
+three_to_two three_to_two_32(.D(D32),.E(E32),.F(F32),.C(C32),.S(S32));
 
-three_to_one three_to_one_31(.D(D31),.E(E31),.F(F31),.C(C31),.S(S31));
-three_to_one three_to_one_32(.D(D32),.E(E32),.F(F32),.C(C32),.S(S32));
+three_to_two three_to_two_41(.D(D41),.E(E41),.F(F41),.C(C41),.S(S41));
+three_to_two three_to_two_42(.D(D42),.E(E42),.F(F42),.C(C42),.S(S42));
 
-three_to_one three_to_one_41(.D(D41),.E(E41),.F(F41),.C(C41),.S(S41));
-three_to_one three_to_one_42(.D(D42),.E(E42),.F(F42),.C(C42),.S(S42));
+three_to_two three_to_two_51(.D(D51),.E(E51),.F(F51),.C(C51),.S(S51));
 
-three_to_one three_to_one_51(.D(D51),.E(E51),.F(F51),.C(C51),.S(S51));
+three_to_two three_to_two_61(.D(D61),.E(E61),.F(F61),.C(C61),.S(S61));
 
-three_to_one three_to_one_61(.D(D61),.E(E61),.F(F61),.C(C61),.S(S61));
-
-//è¿çº¿
-//ç”¨ä½æ‹¼æ¥å¯èƒ½å¥½çœ‹ä¸€äº›ã€‚
+//Á¬Ïß
+//ÓÃÎ»Æ´½Ó¿ÉÄÜºÃ¿´Ò»Ğ©¡£
 assign {D11,E11,F11,D12,E12,F12,D13,E13,F13,D14,E14,F14,D15,E15,F15}=in[16:2];
 /*
 assign E11=in[15];
@@ -70,7 +73,7 @@ assign D15=in[ 4];
 assign E15=in[ 3];
 assign F15=in[ 2];
 */
-assign cout[0:4]={C11,C12,C13,C14,C15};
+assign cout[4:0]={C15,C14,C13,C12,C11};
 /*
 assign cout[1]=C12;
 assign cout[2]=C13;
@@ -78,7 +81,7 @@ assign cout[3]=C14;
 assign cout[4]=C15;
 */
 
-assign {D21,E21,F21,D22,E22,F22,D23,E23,F23,D24,E24,F24}={S11,S12,S13,S14,S15,in[1:0],cin[0:4]};
+assign {D21,E21,F21,D22,E22,F22,D23,E23,F23,D24,E24,F24}={S11,S12,S13,S14,S15,in[1:0],cin[4:0]};
 /*
 assign E21=S12;
 assign F21=S13;
@@ -92,18 +95,32 @@ assign D24=cin[2];
 assign E24=cin[3];
 assign F24=cin[4];
 */
-assign cout[5:8]={C21,C22,C23,C24};
+assign cout[8:5]=cout_8_5_reg;
 
-assign {D31,E31,F31,D32,E32,F32}={S21,S22,S23,S24,cin[5:6]};
-assign cout[9:10]={C31,C32};
+always @(posedge clk)
+begin
+    if(resetn==0)
+	begin
+        cout_8_5_reg<=4'b0;
+	    S21_24_reg<=4'b0;
+    end
+	else
+	begin
+	    cout_8_5_reg<={C24,C23,C22,C21};
+	    S21_24_reg<={S21,S22,S23,S24};
+	end
+end
 
-assign {D41,E41,F41,D42,E42,F42}={S31,S32,cin[7:10]};
-assign cout[11:12]={C41,C42};
+assign {D31,E31,F31,D32,E32,F32}={S21_24_reg,cin[6:5]};
+assign cout[10:9]={C32,C31};
 
-assign {D51,E61,F61}={S41,S42,cin[11]};
+assign {D41,E41,F41,D42,E42,F42}={S31,S32,cin[10:7]};
+assign cout[12:11]={C42,C41};
+
+assign {D51,E51,F51}={S41,S42,cin[11]};
 assign cout[13]=C51;
 
-assign {D61,E61,F61}={S51,cin[12:13]};
+assign {D61,E61,F61}={S51,cin[13:12]};
 assign {A,B}={C61,S61};
 
 endmodule
