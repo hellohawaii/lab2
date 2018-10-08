@@ -157,17 +157,17 @@ module mycpu_top(
 	wire [31:0] write_data_sh;
 	wire [31:0] write_data_swl;
 	wire [31:0] write_data_swr;
-	assign write_data_sb={4{rdata2_EX_MEM[7:0]}};  //unify 4 situations of result
-	assign write_data_sh={2{rdata2_EX_MEM[15:0]}};  //unify 4 situations of result
-	assign write_data_swl=(Result_EX_MEM[1:0]==2'b00)?{24'b0,rdata2_EX_MEM[31:14]}:
-						  (Result_EX_MEM[1:0]==2'b01)?{16'b0,rdata2_EX_MEM[31:16]}:
-						  (Result_EX_MEM[1:0]==2'b10)?{8'b0,rdata2_EX_MEM[31:8]}:
-						  (Result_EX_MEM[1:0]==2'b11)?rdata2_EX_MEM:
+	assign write_data_sb={4{rdata2_EX[7:0]}};  //unify 4 situations of result
+	assign write_data_sh={2{rdata2_EX[15:0]}};  //unify 4 situations of result
+	assign write_data_swl=(Result_EX[1:0]==2'b00)?{24'b0,rdata2_EX[31:14]}:
+						  (Result_EX[1:0]==2'b01)?{16'b0,rdata2_EX[31:16]}:
+						  (Result_EX[1:0]==2'b10)?{8'b0,rdata2_EX[31:8]}:
+						  (Result_EX[1:0]==2'b11)?rdata2_EX:
 						  32'b0;
-	assign write_data_swr=(Result_EX_MEM[1:0]==2'b00)?rdata2_EX_MEM:
-						  (Result_EX_MEM[1:0]==2'b01)?{rdata2_EX_MEM[23:0],8'b0}:
-						  (Result_EX_MEM[1:0]==2'b10)?{rdata2_EX_MEM[15:0],16'b0}:
-						  (Result_EX_MEM[1:0]==2'b11)?{rdata2_EX_MEM[7:0],24'b0}:
+	assign write_data_swr=(Result_EX[1:0]==2'b00)?rdata2_EX:
+						  (Result_EX[1:0]==2'b01)?{rdata2_EX[23:0],8'b0}:
+						  (Result_EX[1:0]==2'b10)?{rdata2_EX[15:0],16'b0}:
+						  (Result_EX[1:0]==2'b11)?{rdata2_EX[7:0],24'b0}:
 						  32'b0;
 	assign data_sram_wdata=(mem_write_value_ID_EX==3'b000)?rdata2_EX:
 		              (mem_write_value_ID_EX==3'b001)?write_data_sb:
