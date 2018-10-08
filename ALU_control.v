@@ -4,9 +4,9 @@ module ALU_control(
 	output [3:0] ALU_ctr  //ctr is the abbr of 'control'
 );
 
-	assign ALU_ctr=(ALUop==3'b000 || ALUop==3'b011 && func==6'b100001)?4'b0010:  //add
+	assign ALU_ctr=(ALUop==3'b000 || ALUop==3'b011 && (func==6'b100001 || func==6'b100000))?4'b0010:  //add
 				   (ALUop==3'b001 || 
-				   ALUop==3'b011 && (func==6'b100011 || func==6'b101011))?4'b0110:  //sub
+				   ALUop==3'b011 && (func==6'b100011 || func==6'b101011 || func==6'b100010))?4'b0110:  //sub
 				   (ALUop==3'b100 ||ALUop==3'b011 && func==6'b100100)?4'b0000:  //and
 				   (ALUop==3'b101 || 
 				   ALUop==3'b011 && (func==6'b100101 || func==6'b100111))?4'b0001:  //or

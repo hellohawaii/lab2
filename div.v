@@ -14,6 +14,7 @@ module div(
 				   //div必须在complete的下一个上沿前取0，下一个上沿之后才能取1同时输入x和y。
 				   //complete持续的时候，count是34。然后下一个周期count会变成0
 );
+//count受div控制，complete受count控制
 
 //计数
 reg [5:0] count;
@@ -28,6 +29,8 @@ begin
 	begin
 	    count<=count+1;
 	end
+	//某个时刻，div变成0，count下一个沿变成0，complete下下个沿就一定是0
+	//但是count下一个沿时候的值，取决于沿（div变成0的下一个沿）前count的值是不是32
 end
 
 //TODO:这些也要放在时序里面，因为实际上x和y不会在运算过程中保持不变。
