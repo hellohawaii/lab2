@@ -120,19 +120,23 @@ module mycpu_top(
 	wire wen_reg_file_EX;
 	wire [31:0] wdata;
 	wire [31:0] rdata1_EX;
+	wire [31:0] adjust_rdata1_EX;//经过流水级修正的rdata1
 	wire [31:0] rdata2_EX;
+	wire [31:0] adjust_rdata2_EX;//经过流水级修正的rdata2
 	//add the reg_flie into the circuit
 	reg_file cpu_reg_file(.clk(clk_reg_file),.resetn(rst_reg_file),.waddr(waddr),.raddr1(raddr1_ID_EX),
 		.raddr2(raddr2_ID_EX),.wen(wen_reg_file_EX_MEM),.wdata(wdata),.rdata1(rdata1_EX),.rdata2(rdata2_EX));
 	assign clk_reg_file=clk;
 	assign raddr1_ID=inst_ID[25:21];
 	assign raddr2_ID=inst_ID[20:16];
-	assign wen_reg_file_EX=(R_type_ID_EX==1 && inst_ID_EX[5:0]==6'b001011)?(rdata2_EX!=32'b0):
-	                       (R_type_ID_EX==1 && inst_ID_EX[5:0]==6'b001010)?(rdata2_EX==32'b0):
+	assign wen_reg_file_EX=(R_type_ID_EX==1 && inst_ID_EX[5:0]==6'b001011)?(adjust_rdata2_EX!=32'b0):
+	                       (R_type_ID_EX==1 && inst_ID_EX[5:0]==6'b001010)?(adjsut_rdata2_EX==32'b0):
 	                       reg_write_ID_EX;//movn,movz
 						   //对于普通的信号，译码完成就可以有效产生；对于movn和movz，可能需要EX才能得到正确的值
 						   //reg_write是控制单元产生的，但是这个并不是完全的写使能控制信号，可能还受其他的控制
 	assign rst_reg_file=resetn;
+	assign adjust_rdata1_EX=(raddr1_ID_EX==waddr/*上一条指令的waddr*/ && waddr!=5'b0 && wen_reg_file_EX_MEM==1)?wdata:rdata1_EX;
+	assign adjust_rdata2_EX=(raddr2_ID_EX==waddr/*上一条指令的waddr*/ && waddr!=5'b0 && wen_reg_file_EX_MEM==1)?wdata:rdata2_EX;
 
 	//define the signal related to ALU
 	wire [31:0] A;
@@ -157,24 +161,24 @@ module mycpu_top(
 	wire [31:0] write_data_sh;
 	wire [31:0] write_data_swl;
 	wire [31:0] write_data_swr;
-	assign write_data_sb={4{rdata2_EX[7:0]}};  //unify 4 situations of result
-	assign write_data_sh={2{rdata2_EX[15:0]}};  //unify 4 situations of result
-	assign write_data_swl=(Result_EX[1:0]==2'b00)?{24'b0,rdata2_EX[31:14]}:
-						  (Result_EX[1:0]==2'b01)?{16'b0,rdata2_EX[31:16]}:
-						  (Result_EX[1:0]==2'b10)?{8'b0,rdata2_EX[31:8]}:
-						  (Result_EX[1:0]==2'b11)?rdata2_EX:
+	assign write_data_sb={4{adjust_rdata2_EX[7:0]}};  //unify 4 situations of result
+	assign write_data_sh={2{adjust_rdata2_EX[15:0]}};  //unify 4 situations of result
+	assign write_data_swl=(Result_EX[1:0]==2'b00)?{24'b0,adjust_rdata2_EX[31:14]}:
+						  (Result_EX[1:0]==2'b01)?{16'b0,adjust_rdata2_EX[31:16]}:
+						  (Result_EX[1:0]==2'b10)?{8'b0,adjust_rdata2_EX[31:8]}:
+						  (Result_EX[1:0]==2'b11)?adjust_rdata2_EX:
 						  32'b0;
-	assign write_data_swr=(Result_EX[1:0]==2'b00)?rdata2_EX:
-						  (Result_EX[1:0]==2'b01)?{rdata2_EX[23:0],8'b0}:
-						  (Result_EX[1:0]==2'b10)?{rdata2_EX[15:0],16'b0}:
-						  (Result_EX[1:0]==2'b11)?{rdata2_EX[7:0],24'b0}:
+	assign write_data_swr=(Result_EX[1:0]==2'b00)?adjust_rdata2_EX:
+						  (Result_EX[1:0]==2'b01)?{adjust_rdata2_EX[23:0],8'b0}:
+						  (Result_EX[1:0]==2'b10)?{adjust_rdata2_EX[15:0],16'b0}:
+						  (Result_EX[1:0]==2'b11)?{adjust_rdata2_EX[7:0],24'b0}:
 						  32'b0;
-	assign data_sram_wdata=(mem_write_value_ID_EX==3'b000)?rdata2_EX:
+	assign data_sram_wdata=(mem_write_value_ID_EX==3'b000)?adjust_rdata2_EX:
 		              (mem_write_value_ID_EX==3'b001)?write_data_sb:
 				      (mem_write_value_ID_EX==3'b010)?write_data_sh:
 					  (mem_write_value_ID_EX==3'b011)?write_data_swl:
 					  (mem_write_value_ID_EX==3'b100)?write_data_swr:
-					  rdata2_EX;
+					  adjust_rdata2_EX;
 
 	//MUX, where to write, decide 'waddr'
 	//在译码阶段就可以产生出备选地址
@@ -196,7 +200,7 @@ module mycpu_top(
 	wire [31:0] B_option01;
 	wire [31:0] B_option10;
 	wire [31:0] B_option11;
-	assign B_option00=rdata2_EX;
+	assign B_option00=adjust_rdata2_EX;
 	assign B_option01={{16{inst_ID_EX[15]}},inst_ID_EX[15:0]};
 	assign B_option10=32'b0;
 	assign B_option11={16'b0,inst_ID_EX[15:0]};
@@ -204,7 +208,7 @@ module mycpu_top(
 		     (B_src_ID_EX==2'b01)? B_option01:
 			 (B_src_ID_EX==2'b10)? B_option10:
 			 (B_src_ID_EX==2'b11)? B_option11:
-			 rdata2_EX;
+			 adjust_rdata2_EX;
 
 	//MUX,what to write to reg_flie, decide 'wdata'
 	wire [31:0] wdata_option0000;
@@ -283,7 +287,7 @@ module mycpu_top(
 	//controled by control unit and function field
 	wire [31:0] A_option0;
 	wire [31:0] A_option1;
-	assign A_option0=rdata1_EX;
+	assign A_option0=adjust_rdata1_EX;
 	assign A_option1[4:0]=inst_ID_EX[10:6];  //only assign value to part of A_option1
 	                                        //这大约是移位指令
     assign A=(R_type_ID_EX==1 && 
@@ -316,12 +320,12 @@ module mycpu_top(
 	assign pc_next_option01=PC+{{{14{inst_ID_EX[15]}},inst_ID_EX[15:0]},2'b00};  //beq,bne(pc+offset)
 	                                                                             //在外部已有延迟槽的时候，不需要从加4之后的基础上再加，故作更改
 	assign pc_next_option10={PC[31:28],{inst_ID_EX[25:0],2'b00}};//在外部已有延迟槽的时候，不需要从加4之后的基础上再加，故作更改
-    assign pc_next_option11=rdata1_EX;
+    assign pc_next_option11=adjust_rdata1_EX;
     assign pc_decider=(Zero==0 && bne_ID_EX==1)?2'b01:
 		              (Zero==1 && beq_ID_EX==1 ||
 					  regimm_ID_EX==1 && inst_ID_EX[20:16]==5'b00001 && Result_EX[0]==0 ||//bgez
-				      blez_ID_EX==1 && (Result_EX[0]==1 || rdata1_EX==32'b0) ||//blez
-					  bgtz_ID_EX==1 && (Result_EX[0]==0 && rdata1_EX!=32'b0) ||//bgtz
+				      blez_ID_EX==1 && (Result_EX[0]==1 || adjust_rdata1_EX==32'b0) ||//blez
+					  bgtz_ID_EX==1 && (Result_EX[0]==0 && adjust_rdata1_EX!=32'b0) ||//bgtz
 					  regimm_ID_EX==1 && inst_ID_EX[20:16]==5'b00000 && Result_EX[0]==1)?2'b01://bltz
 					  (j_ID_EX==1 || jal_ID_EX==1)?2'b10:
 					  (R_type_ID_EX==1 && inst_ID_EX[5:1]==5'b00100)?2'b11://unify jalr and jr
@@ -373,8 +377,8 @@ module mycpu_top(
 			reg_write_value_ID_MEM<=reg_write_value_ID_EX;
 			//waddr_ID_MEM<=waddr_ID_EX;
 			wen_reg_file_EX_MEM<=wen_reg_file_EX;
-			rdata1_EX_MEM<=rdata1_EX;
-			rdata2_EX_MEM<=rdata2_EX;
+			rdata1_EX_MEM<=adjust_rdata1_EX;
+			rdata2_EX_MEM<=adjust_rdata2_EX;
 			R_type_ID_MEM<=R_type_ID_EX;
 			CarryOut_EX_MEM<=CarryOut_EX;
 		    pc_next_option00_EX_MEM<=pc_next_option00_EX;
