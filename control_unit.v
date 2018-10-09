@@ -26,12 +26,13 @@ module control_unit(
 	output bgtz
 );
 	//signal recording the decoded instruction
-	wire addiu, lw  , sw   , nop;
+	wire addi , addiu, lw  , sw   , nop;
 	wire lui  , slti, sltiu;
 	wire andi , lb  , lbu  , lh , lhu, lwl , lwr,
 	     ori  , sb  , sh  , swl, swr, xori;
 
 	//decoding
+	assign addi  =(behavior==6'b001000)?1:0;
 	assign addiu =(behavior==6'b001001)?1:0;
 	assign lw    =(behavior==6'b100011)?1:0;
 	assign sw    =(behavior==6'b101011)?1:0;
@@ -82,10 +83,10 @@ module control_unit(
 						   (lhu  )? 4'b1000:
 						   (lwl  )? 4'b1001:
 						   (lwr  )? 4'b1010:
-		                               4'b0000;     //4'b0000 is result
+		                            4'b0000;     //4'b0000 is result
 	assign ALUop=(addiu || lw    || sw    || lb   || lbu   || 
 		          lh    || lhu   || lwl   || lwr  || sb    ||
-			      sh    || swl   || swr                      )? 3'b000:  //add
+			      sh    || swl   || swr   || addi            )? 3'b000:  //add
 				 (bne   || beq   || sltiu                    )? 3'b001:  //sub
 				 (R_type                                     )? 3'b011:  //R
 				 (slti  || regimm|| blez  || bgtz            )? 3'b010:  //slt
@@ -95,7 +96,8 @@ module control_unit(
 				                                                3'b010;  //slt
 	assign B_src=(addiu || lw    || sw    || slti || sltiu || 
 				  lb    || lbu   || lh    || lhu  || lwl   ||
-				  lwr   || sb    || sh    || swl  || swr     )? 2'b01:  
+				  lwr   || sb    || sh    || swl  || swr   ||
+                  addi				  )? 2'b01:  
 				                                                         //sign_extended imm
 				 (regimm|| blez  || bgtz                     )? 2'b10:
 				 (ori   || andi  || xori                     )? 2'b11:   //zero_extended imm
