@@ -7,6 +7,7 @@ module div(
 	input div_signed,
 	input [31:0] x,
 	input [31:0] y,
+	//div为1时，x和y时被使用的值。A、B寄存器在下个周期得到相应的值。
 	output [31:0] s,
 	output [31:0] r,
 	output reg complete//要与s、r保持一致 

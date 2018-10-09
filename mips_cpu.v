@@ -216,8 +216,8 @@ module mycpu_top(
 	assign mul_signed_ID=(MULT_ID==1)?1:
 	                      (MULTU_ID==1)?0:
 					      0;
-	assign mul_x=rdata1_EX;
-	assign mul_y=rdata2_EX;
+	assign mul_x=adjust_rdata1_EX;//注意要用调整过后的
+	assign mul_y=adjust_rdata2_EX;//注意要用调整过后的
 	
 	//define the signal related to div
 	wire doingdiv_ID;
@@ -239,8 +239,8 @@ module mycpu_top(
 	assign div_signed_ID=(DIV_ID==1)?1:
 	                     (DIVU_ID==1)?0:
 						 0;
-	assign div_x=rdata1_EX;
-	assign div_y=rdata2_EX;
+	assign div_x=adjust_rdata1_EX;//注意要用调整过后的
+	assign div_y=adjust_rdata2_EX;//注意要用调整过后的
 	//TODO：其实可以让DIV占用一个MEM周期，这样可能可以快一些，目前暂时不这么做。
     //TODO: complete当然要用于成为流水线阻塞的逻辑
 
