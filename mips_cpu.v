@@ -57,6 +57,9 @@ module mycpu_top(
 	//debug的流水寄存器
 	reg [31:0] PC_EX,PC_MEM;
 	reg [3:0] data_sram_wen_ID_EX;
+	reg div_complete_MEM;
+	reg just_div;//刚刚开始除法的标志
+	reg div_complete_reg;//除法刚刚结束的标志
 	//乘除法的寄存器
 	reg mul_signed_ID_EX;
 	reg MULT_ID_EX /*中间变量，过渡用*/,MULT_ID_MEM;
@@ -64,7 +67,12 @@ module mycpu_top(
 	reg div_signed_ID_EX;
 	reg doingdiv_ID_EX,doingdiv_ID_MEM;
 	reg MTHI_ID_EX,MTHI_ID_MEM;
-	reg MTLO_ID_EX,MTLO_ID_MEM
+	reg MTLO_ID_EX,MTLO_ID_MEM;
+	reg MFHI_ID_EX;
+	reg MFLO_ID_EX;
+	reg [31:0] adjust_HI_EX_MEM;
+	reg [31:0] adjust_LO_EX_MEM;
+	
 	
 	//CPU简单的输出
 	assign inst_sram_wen = 0;
@@ -72,10 +80,23 @@ module mycpu_top(
 	assign inst_sram_wdata = 0;
 	assign data_sram_wen = data_sram_wen_ID_EX;
 	
+	always@(posedge clk)
+	begin
+	    if(doingdiv_ID_EX==0)
+		begin
+		    just_div<=1'b1;
+		end
+		else
+		begin
+		    just_div<=1'b0;
+		end
+		div_complete_reg<=div_complete;
+	end
+	
 	//debug信号
 	always@(posedge clk)
 	begin
-	    if(wen_reg_file_EX_MEM==1 && waddr!= 5'b00000)
+	    if(wen_reg_file_EX_MEM==1 & waddr!= 5'b00000 & (~doingdiv_ID_EX | (doingdiv_ID_EX & (just_div|div_complete_reg))))//不知道的just_div在连续除法的时候表现如何，TODO
 	    begin
 	        debug_wb_pc <= PC_MEM;
 	        debug_wb_rf_wen <= {4{wen_reg_file_EX_MEM}};
@@ -84,23 +105,30 @@ module mycpu_top(
 	    end
 	    else
 	    begin
-	        debug_wb_rf_wen <=0;
+	        debug_wb_rf_wen <=4'b0;
 	    end
 	end
 
 	wire [31:0] inst_ID;
 	reg [31:0] old_inst;
 	reg old_inst_update;
-	assign inst_ID=inst_sram_rdata;
+	//assign inst_ID=inst_sram_rdata;
 	wire [31:0] data_from_mem;
-    assign data_from_mem=(ID_allowin==1)?data_sram_rdata:old_inst;
+    //assign data_from_mem=(ID_allowin==1)?data_sram_rdata:old_inst;
+	assign data_from_mem=data_sram_rdata;
+	assign inst_ID=(ID_allowin_reg==1)?inst_sram_rdata:old_inst;
+	reg ID_allowin_reg;
 	always@(posedge clk)
 	begin
 	    if(old_inst_update==1)
 		begin
 	        old_inst<=inst_sram_rdata;//这个比inst_ID慢一拍
 		end
+		ID_allowin_reg<=ID_allowin;
 	end
+	
+	
+
 
     // define the signal related to main control
     wire [5:0] behavior;
@@ -147,7 +175,8 @@ module mycpu_top(
 	assign raddr1_ID=inst_ID[25:21];//rs
 	assign raddr2_ID=inst_ID[20:16];//rt
 	assign wen_reg_file_EX=(R_type_ID_EX==1 && inst_ID_EX[5:0]==6'b001011)?(adjust_rdata2_EX!=32'b0):
-	                       (R_type_ID_EX==1 && inst_ID_EX[5:0]==6'b001010)?(adjsut_rdata2_EX==32'b0):
+	                       (R_type_ID_EX==1 && inst_ID_EX[5:0]==6'b001010)?(adjust_rdata2_EX==32'b0):
+						   (doingdiv_ID_EX ==1)?0:
 	                       reg_write_ID_EX;//movn,movz
 						   //对于普通的信号，译码完成就可以有效产生；对于movn和movz，可能需要EX才能得到正确的值
 						   //reg_write是控制单元产生的，但是这个并不是完全的写使能控制信号，可能还受其他的控制
@@ -172,19 +201,19 @@ module mycpu_top(
 		.ALU_ctr(ALUoperation_ID));
 	
 	//define the signal related to mul
-	wire mul_signed;
+	wire mul_signed_ID;
 	wire [31:0] mul_x,mul_y;
 	wire [63:0] mul_result;
 	reg [31:0] HI,LO;//除法也用这两个寄存器
 	//add the mul unit into the circuit
-	mul cpu_mul(.mul_clk(clk),.resetn(resetn),.mul_signed(mul_signed_ID_EX),.x(mul_x),.y(mul_y),result(mul_result));
+	mul cpu_mul(.mul_clk(clk),.resetn(resetn),.mul_signed(mul_signed_ID_EX),.x(mul_x),.y(mul_y),.result(mul_result));
 	//EX阶段结束前输入，WB开始前得到结果(MEM阶段mul_result就有一部分有效了)
 
 	wire MULT_ID;
 	wire MULTU_ID;
-	assign MULT_ID=(inst_ID[31:26]==6'b000000 && inst_ID[5:0]==011000);
-	assign MULTU_ID=(inst_ID[31:26]==6'b000000 && inst_ID[5:0]==011001);
-	assign mul_signed_ID==(MULT_ID==1)?1:
+	assign MULT_ID=(inst_ID[31:26]==6'b000000 && inst_ID[5:0]==6'b011000)?1:0;
+	assign MULTU_ID=(inst_ID[31:26]==6'b000000 && inst_ID[5:0]==6'b011001)?1:0;
+	assign mul_signed_ID=(MULT_ID==1)?1:
 	                      (MULTU_ID==1)?0:
 					      0;
 	assign mul_x=rdata1_EX;
@@ -198,14 +227,15 @@ module mycpu_top(
 	wire [31:0] div_x,div_y,div_s,div_r;
 	wire div_complete;
 	//add the div unit into the circuit
-	div cpu_div(.div_clk(clk),.resetn(resetn),.div(doingdiv_ID_EX),div_signed(div_signed_ID_EX),.x(div_x),
-	    .y(div_y),.s(div_s),.r(div.r),complete(div_complete));
+	div cpu_div(.div_clk(clk),.resetn(resetn),.div(doingdiv_ID_EX),
+	    .div_signed(div_signed_ID_EX),.x(div_x),
+	    .y(div_y),.s(div_s),.r(div_r),.complete(div_complete));
     
 	wire DIV_ID;
 	wire DIVU_ID;
-	assign DIV_ID=(inst_ID[31:26]==6'b000000 && inst_ID[5:0]==011010);
-	assign DIVU_ID=(inst_ID[31:26]==6'b000000 && inst_ID[5:0]==011011);
-	assign doingdiv_ID=DIVU_ID & DIV_ID;
+	assign DIV_ID=(inst_ID[31:26]==6'b000000 && inst_ID[5:0]==6'b011010)?1:0;
+	assign DIVU_ID=(inst_ID[31:26]==6'b000000 && inst_ID[5:0]==6'b011011)?1:0;
+	assign doingdiv_ID=DIVU_ID | DIV_ID;
 	assign div_signed_ID=(DIV_ID==1)?1:
 	                     (DIVU_ID==1)?0:
 						 0;
@@ -215,25 +245,31 @@ module mycpu_top(
     //TODO: complete当然要用于成为流水线阻塞的逻辑
 
 	wire MTHI_ID;
-	assign MTHI_ID=(inst_ID[31:26]==6'b000000 && inst_ID[5:0]==010001);
+	assign MTHI_ID=(inst_ID[31:26]==6'b000000 && inst_ID[5:0]==6'b010001)?1:0;
 	wire MTLO_ID;
-	assign MTLO_ID=(inst_ID[31:26]==6'b000000 && inst_ID[5:0]==010011);
+	assign MTLO_ID=(inst_ID[31:26]==6'b000000 && inst_ID[5:0]==6'b010011)?1:0;
+	wire MFHI_ID;
+	assign MFHI_ID=(inst_ID[31:26]==6'b000000 && inst_ID[5:0]==6'b010000)?1:0;
+	wire MFLO_ID;
+	assign MFLO_ID=(inst_ID[31:26]==6'b000000 && inst_ID[5:0]==6'b010010)?1:0;
 	always@(posedge clk)
 	begin
 		{HI,LO}<=(MULT_ID_MEM==1 || MULTU_ID_MEM==1)?mul_result:
 		    (doingdiv_ID_MEM ==1)?{div_r,div_s}:
 			(MTHI_ID_MEM==1)?{rdata1_EX_MEM,LO}:
-			(MTLO_ID_MEM==1)?(HI,rdatta1_EX_MEM):
+			(MTLO_ID_MEM==1)?{HI,rdata1_EX_MEM}:
 			{HI,LO};
 	end
 	
-	wire adjust_HI=(MFHI == 1 && (MULT_ID_MEM==1 || MULTU_ID_MEM==1))?mul_result[63:32]:
-	    (MFHI == 1 && (doingdiv_ID_MEM ==1))?div_r:
-		(MFHI == 1 && MTHI_ID_MEM==1)?rdata1_EX_MEM:
+	wire [31:0] adjust_HI_EX;
+	assign adjust_HI_EX=(MFHI_ID_EX == 1 && (MULT_ID_MEM==1 || MULTU_ID_MEM==1))?mul_result[63:32]:
+	    (MFHI_ID_EX == 1 && (doingdiv_ID_MEM ==1))?div_r:
+		(MFHI_ID_EX == 1 && MTHI_ID_MEM==1)?rdata1_EX_MEM:
 		HI;
-	wire adjust_LO=(MFLO ==1 && (MULT_ID_MEM==1 || MULTU_ID_MEM==1))?mul_result[31:0]:
-	    (MFLO == 1 && (doingdiv_ID_MEM ==1))?div_s:
-		(MFLO == 1 && MTLO_ID_MEM==1)?rdatta1_EX_MEM:
+	wire [31:0] adjust_LO_EX;
+	assign adjust_LO_EX=(MFLO_ID_EX ==1 && (MULT_ID_MEM==1 || MULTU_ID_MEM==1))?mul_result[31:0]:
+	    (MFLO_ID_EX == 1 && (doingdiv_ID_MEM ==1))?div_s:
+		(MFLO_ID_EX == 1 && MTLO_ID_MEM==1)?rdata1_EX_MEM:
 	    LO;
 	
 	//MUX, what to write to memory
@@ -337,7 +373,8 @@ module mycpu_top(
 					 //依据EX阶段产生的RESULT，以及MEM阶段的结果产生
 	assign wdata=(reg_write_value_ID_MEM==4'b0000 &&(( inst_ID_MEM[5:0]!=6'b001001 &&
 	             inst_ID_MEM[5:1]!=5'b00101  && inst_ID_MEM[5:0]!=6'b100111 &&
-			     inst_ID_MEM[5:0]!=6'b101011)&&R_type_ID_MEM==1 || R_type_ID_MEM==0) )?wdata_option0000:
+			     inst_ID_MEM[5:0]!=6'b101011 && inst_ID_MEM[5:0]!=6'b010000 &&
+				 inst_ID_MEM[5:0]!=6'b010010)&&R_type_ID_MEM==1 || R_type_ID_MEM==0) )?wdata_option0000:
 				                                //unify movn and movz
 
 												//some R_type need handle
@@ -362,8 +399,8 @@ module mycpu_top(
 				 //note reg_write_value_ID_MEM===4'b000 only represent shoult write
 				 //result, can not imply it is R_type
 				 (reg_write_value_ID_MEM===4'b0000 && inst_ID_MEM[5:0]==6'b100111 && R_type_ID_MEM==1)?~Result_EX_MEM:
-				 (reg_write_value_ID_MEM==4'b0000 && inst_ID_MEM[5:0]=6'b010000)?adjust_HI:
-				 (reg_write_value_ID_MEM==4'b0000 && inst_ID_MEM[5:0]=6'b010010)?adjust_LO:
+				 (reg_write_value_ID_MEM==4'b0000 && inst_ID_MEM[5:0]==6'b010000)?adjust_HI_EX_MEM:
+				 (reg_write_value_ID_MEM==4'b0000 && inst_ID_MEM[5:0]==6'b010010)?adjust_LO_EX_MEM:
 				 4'b0000;
 				 //选择信号是译码阶段产生，供选信号有的是EX，有的是MEM产生
 
@@ -435,17 +472,17 @@ module mycpu_top(
 	wire ID_ready2go;
 	wire ID2EX_valid;
 	assign ID_ready2go=1;
-	assign ID_allowin=!ID_valid || ID_ready2go && EX_allowin;
+	assign ID_allowin=~ID_valid || ID_ready2go && EX_allowin;
 	assign ID2EX_valid=ID_valid && ID_ready2go;
-    assign @(posedge clk)
+    always @(posedge clk)
 	begin
-	    if(resetn==0)
+	    if(resetn==1'b0 )
 		begin
-		    ID_valid<=1'b0;
+		    ID_valid<=1'b1;//复位一段时间后，实际上已经充满了第一条指令。所以ID实际是有的
 		end
 		else if(ID_allowin)
 		begin
-		    ID_valid<=1;//ID阶段读到的一定是准确的，只要允许它读的话
+		    ID_valid<=1'b1;//ID阶段读到的一定是准确的，只要允许它读的话
 		end
 		if(1 && ID_allowin)
 		begin
@@ -469,11 +506,11 @@ module mycpu_top(
 			//同时，有一个PC即将要进入IF阶段（刚算出来的地址,当然，这个地址不一定是正确的PC，正确的PC需要EX阶段执行完）
 			//这个即将进入IF的PC，只需要计算它的那些寄存器不丢失就可以了，这依赖于别的。我们的PC，依据是EX阶段的寄存器，而不可能在ID阶段堵住
 			//（流线线前面堵住，后面会把指令流干）所以EX阶段的寄存器在堵住的时候不会流干，所以这个PC会保持住，直到继续流动（EX阶段堵，则会持续更新）
-			old_inst_update<=0;
+			old_inst_update<=1'b1;
 		end
 		else
 		begin
-		    old_inst_update<=1;
+		    old_inst_update<=1'b0;
 			//某个时钟沿前，有堵住信号。这个时钟沿后的周期内，old_inst为0，old_inst在这个周期结束的时候不准更新
 			//某个时钟沿前，没有堵住，这个时钟沿后的周期T内，old_inst为1，在这个周期结束后，old_inst可以更新成T时刻内inst_sram的输出
 		end
@@ -483,18 +520,19 @@ module mycpu_top(
     wire EX_allowin;
 	wire EX_ready2go;
 	wire EX2MEM_valid;
-	assign EX_ready2go=~(doingdiv_ID_EX && ~complete);//体现了除法的阻塞作用
+	assign EX_ready2go=~(doingdiv_ID_EX && ~div_complete);//体现了除法的阻塞作用
 	    //这个是表明处于EX阶段的指令有没有做完，这是决定EX是否可以结束的
 		//这个，只需要在EX阶段结束之前及时变化即可
 		//我这种写法能保证，所有的指令都会及时移走，这就够了。
 		//并不用担心doingdiv_ID能否被取进来（只要上一条能结束即可，上一条按这种写法可以结束）
-    assign EX_allowin=!EX_valid || EX_ready2go && MEM_allowin;
+    assign EX_allowin=~EX_valid || EX_ready2go && MEM_allowin || just_rst;//初始化的时候要改一下
 	assign EX2MEM_valid=EX_valid && EX_ready2go;
 	always@(posedge clk)
 	begin
 	    if(resetn==0)
 		begin
-		    EX_valid<=1'b0;
+		    EX_valid<=1'b1;//复位一段时间后，实际上已经充满了第一条指令。所以EX实际是有的,TODO
+			              //这样保证第一条的寄存器可以传到后面去
 		end
 		else if(EX_allowin)
 		begin
@@ -533,6 +571,8 @@ module mycpu_top(
 			doingdiv_ID_EX<=doingdiv_ID;
 			MTHI_ID_EX<=MTHI_ID;
 			MTLO_ID_EX<=MTLO_ID;
+			MFHI_ID_EX<=MFHI_ID;
+			MFLO_ID_EX<=MFLO_ID;
 		end
 	end
 	
@@ -541,12 +581,12 @@ module mycpu_top(
 	wire MEM_ready2go;
 	//不需要MEM2WB_valid了，因为不关心可不可发送，永远都从流水级中输出
 	assign MEM_ready2go=1;
-	assign MEM_allowin=!MEM_valid || MEM_ready2go && 1/*out_allow=1*/;
+	assign MEM_allowin=~MEM_valid || MEM_ready2go && 1/*out_allow=1*/;
 	always@(posedge clk)
 	begin
 	    if(resetn==0)
 		begin
-		    MEM_valid<=1'b0;
+		    MEM_valid<=1'b1;//复位一段时间后，实际上已经充满了第一条指令。所以MEM实际是有的,TODO
 		end
 		else if(MEM_allowin)
 		begin
@@ -571,6 +611,9 @@ module mycpu_top(
 			doingdiv_ID_MEM<=doingdiv_ID_EX;
 			MTHI_ID_MEM<=MTHI_ID_EX;
 			MTLO_ID_MEM<=MTLO_ID_EX;
+			div_complete_MEM<=div_complete;
+			adjust_HI_EX_MEM<=adjust_HI_EX;
+			adjust_LO_EX_MEM<=adjust_LO_EX;
 			//只要左边的不被错误覆盖就可以了
 			//右边，有的是EX阶段依据EX阶段的寄存器产生的值，有的是EX阶段从ID阶段收过来的值
 			//这两种没有区别。本质都是EX阶段的寄存器传过来而已（只不过不是直接赋值，有一些逻辑）。
