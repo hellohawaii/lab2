@@ -6,7 +6,7 @@ module control_unit(
 	input  clk,
 	input  resetn,
 	input  [5:0] behavior,
-	input  [31:0] Result,//ALU result
+	//input  [31:0] Result,//ALU result
 	output [1:0] reg_dst,//signal for mux(where to write)
 	output mem_read,//enable signal
 	output [3:0] reg_write_value,//signal for mux(what to write reg_file)
@@ -14,7 +14,7 @@ module control_unit(
 	output mem_write,//enable signal
 	output [1:0] B_src,//signal for mux(what to compute)
 	output reg_write,//enable signal
-	output [3:0] data_sram_wen,//signal for 8or16-bit write
+	//output [3:0] data_sram_wen,//signal for 8or16-bit write
 	output [2:0] mem_write_value,//signal for mux(what to write to mem)
 	output bne,
     output beq,
@@ -23,13 +23,18 @@ module control_unit(
 	output R_type,
 	output regimm,
 	output blez,
-	output bgtz
+	output bgtz,
+	output sw,
+	output sb,
+	output sh,
+	output swl,
+	output swr
 );
 	//signal recording the decoded instruction
-	wire addi , addiu, lw  , sw   , nop;
+	wire addi , addiu, lw  , nop;
 	wire lui  , slti, sltiu;
 	wire andi , lb  , lbu  , lh , lhu, lwl , lwr,
-	     ori  , sb  , sh  , swl, swr, xori;
+	     ori;
 
 	//decoding
 	assign addi  =(behavior==6'b001000)?1:0;
@@ -107,10 +112,12 @@ module control_unit(
 						   (swl)? 3'b011:
 						   (swr)? 3'b100:
 						          3'b000;
+	/*
 	wire [3:0] write_strb_sb ;
 	wire [3:0] write_strb_sh ;
 	wire [3:0] write_strb_swl;
 	wire [3:0] write_strb_swr;
+
 	assign write_strb_sb =(Result[1:0]==2'b00)? 4'b0001:
 						  (Result[1:0]==2'b01)? 4'b0010:
 						  (Result[1:0]==2'b10)? 4'b0100:
@@ -135,4 +142,5 @@ module control_unit(
 				   	     (swl)? write_strb_swl:
 					     (swr)? write_strb_swr:
 					                   4'b0000;
+	*/
 endmodule

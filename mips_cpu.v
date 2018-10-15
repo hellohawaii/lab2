@@ -56,9 +56,9 @@ module mycpu_top(
 	reg [1:0] B_src_ID_EX;
 	reg [3:0] ALUoperation_ID_EX;
 	reg [4:0] raddr1_ID_EX,raddr2_ID_EX;
+	reg sw_ID_EX,sb_ID_EX,sh_ID_EX,swl_ID_EX,swr_ID_EX;
 	//debug的流水寄存器
 	reg [31:0] PC_EX,PC_MEM;
-	reg [3:0] data_sram_wen_ID_EX;
 	reg div_complete_MEM;
 	reg just_div;//刚刚开始除法的标志
 	reg div_complete_reg;//除法刚刚结束的标志
@@ -80,7 +80,6 @@ module mycpu_top(
 	assign inst_sram_wen = 0;
 	assign inst_sram_addr =/*(resetn==0)?32'Hbfc00000:*/pc_next;
 	assign inst_sram_wdata = 0;
-	assign data_sram_wen = data_sram_wen_ID_EX;
 	
 	always@(posedge clk)
 	begin
@@ -142,16 +141,16 @@ module mycpu_top(
     wire reg_write_ID;
 	wire bne_ID,beq_ID,j_ID,jal_ID,R_type_ID,regimm_ID,blez_ID,bgtz_ID;
 	wire [2:0] mem_write_value_ID;
-    wire [3:0] data_sram_wen_ID;
+	wire sw_ID,sb_ID,sh_ID,swl_ID,swr_ID;
 	//add the control unit into the circuit
 	control_unit cpu_control_unit(.clk(clk),.resetn(resetn),
-	    .behavior(behavior),.Result(Result_EX),
+	    .behavior(behavior),/*.Result(Result_EX),*/
 		.reg_dst(reg_dst_ID),.mem_read(mem_read_ID),.reg_write_value(reg_write_value_ID),
 		.ALUop(ALUop),.mem_write(mem_write_ID),.B_src(B_src_ID),.reg_write(reg_write_ID),
-		.data_sram_wen(data_sram_wen_ID),.mem_write_value(mem_write_value_ID),
+		/*.data_sram_wen(data_sram_wen_ID),*/.mem_write_value(mem_write_value_ID),
 		//decoding signal
 		.bne(bne_ID),.beq(beq_ID),.j(j_ID),.jal(jal_ID),.R_type(R_type_ID),
-		.regimm(regimm_ID),.blez(blez_ID),.bgtz(bgtz_ID)
+		.regimm(regimm_ID),.blez(blez_ID),.bgtz(bgtz_ID),.sw(sw_ID),.sb(sb_ID),.sh(sh_ID),.swl(swl_ID),.swr(swr_ID)
 	);
     assign behavior=inst_ID[31:26];
 	assign data_sram_en=mem_read_ID_EX| mem_write_ID_EX;
@@ -287,7 +286,7 @@ module mycpu_top(
 	wire [31:0] write_data_swr;
 	assign write_data_sb={4{adjust_rdata2_EX[7:0]}};  //unify 4 situations of result
 	assign write_data_sh={2{adjust_rdata2_EX[15:0]}};  //unify 4 situations of result
-	assign write_data_swl=(Result_EX[1:0]==2'b00)?{24'b0,adjust_rdata2_EX[31:14]}:
+	assign write_data_swl=(Result_EX[1:0]==2'b00)?{24'b0,adjust_rdata2_EX[31:24]}:
 						  (Result_EX[1:0]==2'b01)?{16'b0,adjust_rdata2_EX[31:16]}:
 						  (Result_EX[1:0]==2'b10)?{8'b0,adjust_rdata2_EX[31:8]}:
 						  (Result_EX[1:0]==2'b11)?adjust_rdata2_EX:
@@ -312,8 +311,8 @@ module mycpu_top(
 	wire [4:0] waddr_option01;
 	assign waddr_option00=inst_ID_MEM[20:16];//TODO,not sure,是不是mem阶段使用的这些，只需要在EX的最后阶段准备好就可以了
 	assign waddr_option01=inst_ID_MEM[15:11];//TODO,not sure,是不是mem阶段使用的这些，只需要在EX的最后阶段准备好就可以了
-	assign waddr=(reg_dst_ID_MEM==2'b00)? waddr_option00: 
-		         (reg_dst_ID_MEM==2'b01)? waddr_option01:
+	assign waddr=(reg_dst_ID_MEM==2'b00 && ~( bltzal_ID_MEM || bgezal_ID_MEM))? waddr_option00: 
+		         (reg_dst_ID_MEM==2'b01 && ~( bltzal_ID_MEM || bgezal_ID_MEM))? waddr_option01:
 				 (reg_dst_ID_MEM==2'b10 || bltzal_ID_MEM || bgezal_ID_MEM)? 5'b11111://强行修改bltzal和bgezal
 				 5'b00000;
 	
@@ -380,7 +379,7 @@ module mycpu_top(
 	assign wdata=(reg_write_value_ID_MEM==4'b0000 &&(( inst_ID_MEM[5:0]!=6'b001001 &&
 	             inst_ID_MEM[5:1]!=5'b00101  && inst_ID_MEM[5:0]!=6'b100111 &&
 			     inst_ID_MEM[5:0]!=6'b101011 && inst_ID_MEM[5:0]!=6'b010000 &&
-				 inst_ID_MEM[5:0]!=6'b010010)&&R_type_ID_MEM==1 || R_type_ID_MEM==0) )?wdata_option0000:
+				 inst_ID_MEM[5:0]!=6'b010010)&&R_type_ID_MEM==1 || R_type_ID_MEM==0)&& ~( bltzal_ID_MEM || bgezal_ID_MEM) )?wdata_option0000:
 				                                //unify movn and movz
 
 												//some R_type need handle
@@ -413,6 +412,36 @@ module mycpu_top(
 				 4'b0000;
 				 //选择信号是译码阶段产生，供选信号有的是EX，有的是MEM产生
 
+	//signal for 8or16-bit write
+	wire [3:0] write_strb_sb ;
+	wire [3:0] write_strb_sh ;
+	wire [3:0] write_strb_swl;
+	wire [3:0] write_strb_swr;
+	assign write_strb_sb =(Result_EX[1:0]==2'b00)? 4'b0001:
+						  (Result_EX[1:0]==2'b01)? 4'b0010:
+						  (Result_EX[1:0]==2'b10)? 4'b0100:
+						  (Result_EX[1:0]==2'b11)? 4'b1000:
+						                        4'b0000;
+	assign write_strb_sh =(Result_EX[ 1 ]==0    )? 4'b0011:
+						  (Result_EX[ 1 ]==1    )? 4'b1100:
+						                        4'b0000;
+	assign write_strb_swl=(Result_EX[1:0]==2'b00)? 4'b0001:
+						  (Result_EX[1:0]==2'b01)? 4'b0011:
+						  (Result_EX[1:0]==2'b10)? 4'b0111:
+						  (Result_EX[1:0]==2'b11)? 4'b1111:
+			                 			        4'b0000;
+	assign write_strb_swr=(Result_EX[1:0]==2'b00)? 4'b1111:
+						  (Result_EX[1:0]==2'b01)? 4'b1110:
+						  (Result_EX[1:0]==2'b10)? 4'b1100:
+						  (Result_EX[1:0]==2'b11)? 4'b1000:
+						                        4'b0000;
+	assign data_sram_wen=(sw_ID_EX )?        4'b1111:
+		                 (sb_ID_EX )? write_strb_sb :
+					     (sh_ID_EX )? write_strb_sh :
+				   	     (swl_ID_EX)? write_strb_swl:
+					     (swr_ID_EX)? write_strb_swr:
+					                   4'b0000;	
+	
     //MUX,when the option is shift using sa, let a equal to sa instead of rs
 	//controled by control unit and function field
 	wire [31:0] A_option0;
@@ -574,7 +603,6 @@ module mycpu_top(
 			ALUoperation_ID_EX<=ALUoperation_ID;
 			raddr1_ID_EX<=raddr1_ID;
 			raddr2_ID_EX<=raddr2_ID;
-			data_sram_wen_ID_EX<=data_sram_wen_ID;
 			mul_signed_ID_EX<=mul_signed_ID;
 			MULT_ID_EX<=MULT_ID;
 			MULTU_ID_EX<=MULTU_ID;
@@ -586,6 +614,11 @@ module mycpu_top(
 			MFLO_ID_EX<=MFLO_ID;
 			bltzal_ID_EX<=bltzal_ID;
 			bgezal_ID_EX<=bgezal_ID;
+			sw_ID_EX<=sw_ID;
+			sb_ID_EX<=sb_ID;
+			sh_ID_EX<=sh_ID;
+			swl_ID_EX<=swl_ID;
+			swr_ID_EX<=swr_ID;
 		end
 	end
 	
@@ -632,6 +665,7 @@ module mycpu_top(
 			//这两种没有区别。本质都是EX阶段的寄存器传过来而已（只不过不是直接赋值，有一些逻辑）。
 			bltzal_ID_MEM<=bltzal_ID_EX;
 			bgezal_ID_MEM<=bgezal_ID_EX;
+			regimm_ID_MEM<=regimm_ID_EX;
 		end
 	end
 endmodule
