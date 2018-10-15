@@ -32,6 +32,13 @@ module mycpu_top(
             just_rst<=0;
     end
 	
+	reg old_rst,veryold_rst;
+	always@(posedge clk)
+	begin
+	    old_rst<=resetn;
+		veryold_rst<=old_rst;
+	end
+	
 	reg [31:0] PC;//在IF结束之前置为正确的值（这样ID阶段有正确的instr）
 	              //是IF级的输出，不过不是哪一级的输入
 	
@@ -100,7 +107,7 @@ module mycpu_top(
 	    if(wen_reg_file_EX_MEM==1 & waddr!= 5'b00000 & (~doingdiv_ID_EX | (doingdiv_ID_EX & (just_div|div_complete_reg))))//不知道的just_div在连续除法的时候表现如何，TODO
 	    begin
 	        debug_wb_pc <= PC_MEM;
-	        debug_wb_rf_wen <= {4{wen_reg_file_EX_MEM}};
+	        debug_wb_rf_wen <= {4{wen_reg_file_EX_MEM & veryold_rst}};
 	        debug_wb_rf_wnum <= waddr;
 	        debug_wb_rf_wdata <= wdata;
 	    end

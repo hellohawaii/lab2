@@ -34,7 +34,7 @@ module control_unit(
 	wire addi , addiu, lw  , nop;
 	wire lui  , slti, sltiu;
 	wire andi , lb  , lbu  , lh , lhu, lwl , lwr,
-	     ori;
+	     ori, xori;
 
 	//decoding
 	assign addi  =(behavior==6'b001000)?1:0;
