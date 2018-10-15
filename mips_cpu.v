@@ -48,7 +48,9 @@ module mycpu_top(
 	reg wen_reg_file_EX_MEM;
 	reg [31:0] rdata1_EX_MEM;
 	reg [31:0] rdata2_EX_MEM;
-	reg bne_ID_EX,beq_ID_EX,j_ID_EX,jal_ID_EX,R_type_ID_EX,R_type_ID_MEM,regimm_ID_EX,blez_ID_EX,bgtz_ID_EX;
+	reg bne_ID_EX,beq_ID_EX,j_ID_EX,jal_ID_EX,R_type_ID_EX,R_type_ID_MEM,regimm_ID_EX,regimm_ID_MEM,blez_ID_EX,bgtz_ID_EX;
+	reg bltzal_ID_EX,bltzal_ID_MEM;
+	reg bgezal_ID_EX,bgezal_ID_MEM;
 	reg CarryOut_EX_MEM;
 	reg [31:0] pc_next_option00_EX_MEM;
 	reg [1:0] B_src_ID_EX;
@@ -128,8 +130,6 @@ module mycpu_top(
 	end
 	
 	
-
-
     // define the signal related to main control
     wire [5:0] behavior;
 	wire [31:0] Result_EX;
@@ -156,6 +156,11 @@ module mycpu_top(
     assign behavior=inst_ID[31:26];
 	assign data_sram_en=mem_read_ID_EX| mem_write_ID_EX;
 	
+	wire bltzal_ID;
+	assign bltzal_ID=inst_ID[31:26]==6'b000001 && inst_ID[20:16]==5'b10000;
+	wire bgezal_ID;
+	assign bgezal_ID=inst_ID[31:26]==6'b000001 && inst_ID[20:16]==5'b10001;
+	
 	//define the signal related to reg_file
 	wire clk_reg_file;
 	wire rst_reg_file;
@@ -177,6 +182,7 @@ module mycpu_top(
 	assign wen_reg_file_EX=(R_type_ID_EX==1 && inst_ID_EX[5:0]==6'b001011)?(adjust_rdata2_EX!=32'b0):
 	                       (R_type_ID_EX==1 && inst_ID_EX[5:0]==6'b001010)?(adjust_rdata2_EX==32'b0):
 						   (doingdiv_ID_EX ==1)?0:
+						   (bltzal_ID_EX == 1 || bgezal_ID_EX==1)?1://强行修补，因为之前认为regimm类型全是跳转类型来着
 	                       reg_write_ID_EX;//movn,movz
 						   //对于普通的信号，译码完成就可以有效产生；对于movn和movz，可能需要EX才能得到正确的值
 						   //reg_write是控制单元产生的，但是这个并不是完全的写使能控制信号，可能还受其他的控制
@@ -308,7 +314,7 @@ module mycpu_top(
 	assign waddr_option01=inst_ID_MEM[15:11];//TODO,not sure,是不是mem阶段使用的这些，只需要在EX的最后阶段准备好就可以了
 	assign waddr=(reg_dst_ID_MEM==2'b00)? waddr_option00: 
 		         (reg_dst_ID_MEM==2'b01)? waddr_option01:
-				 (reg_dst_ID_MEM==2'b10)? 5'b11111:
+				 (reg_dst_ID_MEM==2'b10 || bltzal_ID_MEM || bgezal_ID_MEM)? 5'b11111://强行修改bltzal和bgezal
 				 5'b00000;
 	
 	//MUX, what to compute, decide  'B'
@@ -381,8 +387,11 @@ module mycpu_top(
 												//seperately
 		         (reg_write_value_ID_MEM===4'b0001)?wdata_option0001:
 				 (reg_write_value_ID_MEM===4'b0010/*jal*/ ||
-			     reg_write_value_ID_MEM===4'b0000 && inst_ID_MEM[5:0]==6'b001001 && R_type_ID_MEM==1
+			     reg_write_value_ID_MEM===4'b0000 && inst_ID_MEM[5:0]==6'b001001 && R_type_ID_MEM==1/*jalr*/||
+				 reg_write_value_ID_MEM===4'b0000 && bltzal_ID_MEM==1 && regimm_ID_MEM==1/*bltzal*/||
+				 reg_write_value_ID_MEM===4'b0000 && bgezal_ID_MEM==1 && regimm_ID_MEM==1/*bgezal*/
 			     )?(pc_next_option00_EX_MEM/*+4*//*不应该有加4了*/):
+				                                //may not jump, but be sure to write
 				                                //pc_next_option00 is defined below
 				 (reg_write_value_ID_MEM===4'b0011)?{inst_ID_MEM[15:0],16'b0}:
 				 (reg_write_value_ID_MEM===4'b0100 || 
@@ -446,10 +455,12 @@ module mycpu_top(
     assign pc_next_option11=adjust_rdata1_EX;
     assign pc_decider=(Zero==0 && bne_ID_EX==1)?2'b01:
 		              (Zero==1 && beq_ID_EX==1 ||
-					  regimm_ID_EX==1 && inst_ID_EX[20:16]==5'b00001 && Result_EX[0]==0 ||//bgez
+					  regimm_ID_EX==1 && (inst_ID_EX[20:16]==5'b00001 || bgezal_ID_EX==1)&& Result_EX[0]==0 ||//bgez || bgezal
+					  //强行修改，不协调
 				      blez_ID_EX==1 && (Result_EX[0]==1 || adjust_rdata1_EX==32'b0) ||//blez
 					  bgtz_ID_EX==1 && (Result_EX[0]==0 && adjust_rdata1_EX!=32'b0) ||//bgtz
-					  regimm_ID_EX==1 && inst_ID_EX[20:16]==5'b00000 && Result_EX[0]==1)?2'b01://bltz
+					  regimm_ID_EX==1 && (inst_ID_EX[20:16]==5'b00000 || bltzal_ID_EX==1) && Result_EX[0]==1)?2'b01://bltz || bltzal
+					  //强行修改，不协调
 					  (j_ID_EX==1 || jal_ID_EX==1)?2'b10:
 					  (R_type_ID_EX==1 && inst_ID_EX[5:1]==5'b00100)?2'b11://unify jalr and jr
 					  2'b00;
@@ -573,6 +584,8 @@ module mycpu_top(
 			MTLO_ID_EX<=MTLO_ID;
 			MFHI_ID_EX<=MFHI_ID;
 			MFLO_ID_EX<=MFLO_ID;
+			bltzal_ID_EX<=bltzal_ID;
+			bgezal_ID_EX<=bgezal_ID;
 		end
 	end
 	
@@ -617,6 +630,8 @@ module mycpu_top(
 			//只要左边的不被错误覆盖就可以了
 			//右边，有的是EX阶段依据EX阶段的寄存器产生的值，有的是EX阶段从ID阶段收过来的值
 			//这两种没有区别。本质都是EX阶段的寄存器传过来而已（只不过不是直接赋值，有一些逻辑）。
+			bltzal_ID_MEM<=bltzal_ID_EX;
+			bgezal_ID_MEM<=bgezal_ID_EX;
 		end
 	end
 endmodule
